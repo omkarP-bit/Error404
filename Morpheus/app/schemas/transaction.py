@@ -23,6 +23,9 @@ class TransactionOut(BaseModel):
     user_id:          int
     account_id:       int
     merchant_id:      Optional[int]
+    # Expose the merchant's raw_name (from MERCHANTS table) so
+    # the Flutter client can display the correct merchant label.
+    raw_name:         Optional[str] = None
     amount:           float
     txn_type:         str
     category:         Optional[str]

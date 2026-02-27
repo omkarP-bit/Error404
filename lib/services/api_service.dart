@@ -1,5 +1,6 @@
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
@@ -247,6 +248,135 @@ class ApiService {
     }
   }
 
+  // ────────────────────────────────────────────────────────
+  // OCR RECEIPT PROCESSING ENDPOINTS
+  // ────────────────────────────────────────────────────────
+
+  /// Upload receipt image for OCR processing
+  /// Extracts merchant name, transaction amount, and description
+  Future<OCRResult> processReceiptImage({
+    required String imagePath,
+  }) async {
+    try {
+      final file = File(imagePath);
+      if (!file.existsSync()) {
+        throw Exception('Image file not found: $imagePath');
+      }
+
+      final request = http.MultipartRequest(
+        'POST',
+        // FastAPI OCR endpoint is exposed at POST /api/categorize/ocr
+        Uri.parse('$baseUrl/categorize/ocr'),
+      );
+
+      // Add image file to request
+      request.files.add(
+        await http.MultipartFile.fromPath('file', imagePath),
+      );
+
+      debugPrint('Sending OCR request for: $imagePath');
+
+      final streamedResponse = await request.send().timeout(
+        const Duration(seconds: 60),
+        onTimeout: () => throw TimeoutException('OCR processing timed out'),
+      );
+
+      final response = await http.Response.fromStream(streamedResponse);
+
+      if (response.statusCode == 200) {
+        final jsonResponse = jsonDecode(response.body);
+        if (jsonResponse['success'] ?? false) {
+          return OCRResult.fromJson(jsonResponse);
+        } else {
+          throw Exception(jsonResponse['error'] ?? 'OCR processing failed');
+        }
+      } else {
+        throw Exception('Failed to process receipt: ${response.statusCode} - ${response.body}');
+      }
+    } catch (e) {
+      debugPrint('Error in processReceiptImage: $e');
+      rethrow;
+    }
+  }
+
+  // ────────────────────────────────────────────────────────
+  // MERCHANT MANAGEMENT ENDPOINTS
+  // ────────────────────────────────────────────────────────
+
+  /// Check if a merchant already exists in the database
+  /// Returns true if merchant exists, false otherwise
+  Future<MerchantCheckResult> checkMerchantExists({
+    required String merchantName,
+    required int userId,
+  }) async {
+    try {
+      final queryParams = {
+        'merchant_name': merchantName,
+        'user_id': userId.toString(),
+      };
+
+      final response = await http.get(
+        Uri.parse('$baseUrl/merchants/check').replace(queryParameters: queryParams),
+        headers: {'Content-Type': 'application/json'},
+      ).timeout(
+        const Duration(seconds: 10),
+        onTimeout: () => throw TimeoutException('Merchant check request timed out'),
+      );
+
+      if (response.statusCode == 200) {
+        final jsonResponse = jsonDecode(response.body);
+        return MerchantCheckResult.fromJson(jsonResponse);
+      } else if (response.statusCode == 404) {
+        // Merchant not found
+        return MerchantCheckResult(exists: false, message: 'Merchant not found');
+      } else {
+        throw Exception('Failed to check merchant: ${response.statusCode}');
+      }
+    } catch (e) {
+      debugPrint('Error in checkMerchantExists: $e');
+      rethrow;
+    }
+  }
+
+  /// Add a new merchant to the database
+  /// Returns the merchant ID if successful
+  Future<int> addMerchant({
+    required String merchantName,
+    required int userId,
+    String category = 'Unknown',
+  }) async {
+    try {
+      final requestBody = {
+        'merchant_name': merchantName,
+        'user_id': userId.toString(),
+        'category': category,
+      };
+
+      final response = await http.post(
+        Uri.parse('$baseUrl/merchants/add'),
+        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+        body: requestBody,
+      ).timeout(
+        const Duration(seconds: 30),
+        onTimeout: () => throw TimeoutException('Add merchant request timed out'),
+      );
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        final jsonResponse = jsonDecode(response.body);
+        if (jsonResponse['success'] ?? false) {
+          return jsonResponse['merchant_id'] ?? -1;
+        } else {
+          throw Exception(jsonResponse['error'] ?? 'Failed to add merchant');
+        }
+      } else {
+        throw Exception('Failed to add merchant: ${response.statusCode}');
+      }
+    } catch (e) {
+      debugPrint('Error in addMerchant: $e');
+      rethrow;
+    }
+  }
+
   /// Get category breakdown statistics
   /// This will be calculated from the transactions list
   Future<CategoryBreakdown> getCategoryBreakdown({
@@ -332,6 +462,7 @@ class Transaction {
   final String? category;
   final String? subcategory;
   final String? rawDescription;
+  final String? rawName;
   final String? paymentMode;
   final bool userVerified;
   final bool isRecurring;
@@ -350,6 +481,7 @@ class Transaction {
     this.category,
     this.subcategory,
     this.rawDescription,
+    this.rawName,
     this.paymentMode,
     required this.userVerified,
     required this.isRecurring,
@@ -393,16 +525,24 @@ class Transaction {
       return value.toString();
     }
 
+    // Helper to safely convert any value to String
+    String? _toString(dynamic value) {
+      if (value == null) return null;
+      if (value is String) return value;
+      return value.toString();
+    }
+
     return Transaction(
       txnId: _toInt(json['txn_id']) ?? 0,
       userId: _toInt(json['user_id']) ?? 0,
       accountId: _toInt(json['account_id']) ?? 0,
       amount: _toDouble(json['amount']) ?? 0.0,
-      txnType: (json['txn_type'] as String?) ?? 'debit',
-      category: (json['category'] as String?),
-      subcategory: (json['subcategory'] as String?),
-      rawDescription: (json['raw_description'] as String?),
-      paymentMode: (json['payment_mode'] as String?),
+      txnType: _toString(json['txn_type']) ?? 'debit',
+      category: _toString(json['category']),
+      subcategory: _toString(json['subcategory']),
+      rawDescription: _toString(json['raw_description']),
+      rawName: _toString(json['raw_name']),
+      paymentMode: _toString(json['payment_mode']),
       userVerified: _toBool(json['user_verified']),
       isRecurring: _toBool(json['is_recurring']),
       confidenceScore: _toDouble(json['confidence_score']),
@@ -424,6 +564,7 @@ class Transaction {
     'category': category,
     'subcategory': subcategory,
     'raw_description': rawDescription,
+    'raw_name': rawName,
     'payment_mode': paymentMode,
     'user_verified': userVerified,
     'is_recurring': isRecurring,
@@ -576,6 +717,95 @@ class CategoryBreakdown {
     }
     
     return const Color(0xFF8BA5A8); // Gray - default
+  }
+}
+
+// ────────────────────────────────────────────────────────
+// DATA MODELS - MERCHANT MANAGEMENT
+// ────────────────────────────────────────────────────────
+
+class MerchantCheckResult {
+  final bool exists;
+  final String message;
+  final int? merchantId;
+
+  MerchantCheckResult({
+    required this.exists,
+    required this.message,
+    this.merchantId,
+  });
+
+  factory MerchantCheckResult.fromJson(Map<String, dynamic> json) {
+    return MerchantCheckResult(
+      exists: json['exists'] ?? false,
+      message: json['message'] ?? '',
+      merchantId: json['merchant_id'],
+    );
+  }
+}
+
+// ────────────────────────────────────────────────────────
+// DATA MODELS - OCR RESULT
+// ────────────────────────────────────────────────────────
+
+class OCRResult {
+  final bool success;
+  final String? merchantName;
+  final double? amount;
+  final String? description;
+  final String? fullText;
+  final String? error;
+
+  OCRResult({
+    required this.success,
+    this.merchantName,
+    this.amount,
+    this.description,
+    this.fullText,
+    this.error,
+  });
+
+  factory OCRResult.fromJson(Map<String, dynamic> json) {
+    // Backend OCR endpoint currently returns:
+    // { "success": true, "result": { "ocr_merchant", "ocr_amount", "ocr_description", ... } }
+    final result = (json['result'] is Map<String, dynamic>)
+        ? json['result'] as Map<String, dynamic>
+        : <String, dynamic>{};
+
+    double? pickAmount(dynamic value) {
+      if (value == null) return null;
+      if (value is num) return value.toDouble();
+      if (value is String) return double.tryParse(value);
+      return null;
+    }
+
+    String? pickString(dynamic value) {
+      if (value == null) return null;
+      if (value is String) return value;
+      return value.toString();
+    }
+
+    return OCRResult(
+      success: json['success'] ?? false,
+      // Prefer structured OCR fields from result, fall back to any flat keys
+      merchantName: pickString(
+        result['ocr_merchant'] ??
+        json['ocr_merchant'] ??
+        json['merchant_name'] ??
+        json['raw_name'],
+      ),
+      amount: pickAmount(
+        result['ocr_amount'] ?? json['ocr_amount'] ?? json['amount'],
+      ),
+      description: pickString(
+        result['ocr_description'] ??
+        json['ocr_description'] ??
+        json['description'],
+      ),
+      // Keep fullText/error for potential debugging; backend may not send these
+      fullText: pickString(json['full_text']),
+      error: pickString(json['error']),
+    );
   }
 }
 

@@ -85,6 +85,13 @@ class Transaction(Base):
         Index("ix_txn_user_ts", "user_id", "txn_timestamp"),
     )
 
+    # Convenience attribute for API responses — exposes the linked
+    # merchant's raw_name so clients don't need a separate join.
+    @property
+    def raw_name(self) -> Optional[str]:  # type: ignore[override]
+        merchant = getattr(self, "merchant", None)
+        return getattr(merchant, "raw_name", None) if merchant is not None else None
+
     def __repr__(self) -> str:
         return (
             f"<Transaction id={self.txn_id} "

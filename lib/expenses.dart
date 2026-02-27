@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
+import 'package:image_picker/image_picker.dart';
+import 'dart:io';
 import 'services/api_service.dart';
 
 class ExpensesScreen extends StatefulWidget {
@@ -131,19 +133,16 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
     );
   }
 
-  String _extractMerchantName(String? description) {
-    if (description == null || description.isEmpty) {
+  String _extractMerchantName(String? rawName) {
+    // Use raw_name directly from database
+    if (rawName == null || rawName.isEmpty) {
       return 'Unknown Merchant';
     }
     
-    // Extract the first meaningful word or name from description
-    final parts = description.split(' ');
-    if (parts.isNotEmpty && parts.first.isNotEmpty) {
-      return parts.first;
-    }
-    return description.length > 20 
-      ? '${description.substring(0, 17)}...'
-      : description;
+    // Return the merchant name, with truncation if too long
+    return rawName.length > 25 
+      ? '${rawName.substring(0, 22)}...'
+      : rawName;
   }
 
   List<Transaction> _getFilteredTransactions() {
@@ -500,7 +499,7 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
                   children: [
                     Expanded(
                       child: Text(
-                        _extractMerchantName(transaction.rawDescription),
+                        _extractMerchantName(transaction.rawName),
                         style: const TextStyle(
                           color: textDark,
                           fontSize: 16,
@@ -1024,24 +1023,263 @@ class _AddTransactionDialog extends StatefulWidget {
 class _AddTransactionDialogState extends State<_AddTransactionDialog> {
   final _descriptionController = TextEditingController();
   final _amountController = TextEditingController();
+  final _merchantController = TextEditingController();
+  final ImagePicker _imagePicker = ImagePicker();
+  
   CategorizationResult? _categorizationResult;
   bool _isLoading = false;
   bool _isConfirmingCategory = false;
+  bool _isScanningOCR = false;
   String? _selectedCategory;
   String? _selectedSubcategory;
   String _paymentMode = 'UPI';
+  String _transactionType = 'debit';
+  XFile? _selectedImage;
+  bool _merchantExists = false;
+  String? _merchantCheckMessage;
 
   @override
   void dispose() {
     _descriptionController.dispose();
     _amountController.dispose();
+    _merchantController.dispose();
     super.dispose();
+  }
+
+  /// Scan receipt using camera/gallery and send to backend for OCR processing
+  Future<void> _scanReceipt() async {
+    try {
+      if (mounted) setState(() => _isScanningOCR = true);
+
+      // Show option to pick from camera or gallery
+      final source = await showDialog<ImageSource>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Capture Receipt'),
+          content: const Text('Choose to take a photo or select from gallery'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, ImageSource.camera),
+              child: const Text('Camera'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(context, ImageSource.gallery),
+              child: const Text('Gallery'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel'),
+            ),
+          ],
+        ),
+      );
+
+      if (source == null) {
+        if (mounted) setState(() => _isScanningOCR = false);
+        return;
+      }
+
+      // Pick image
+      final image = await _imagePicker.pickImage(
+        source: source,
+        // Reduce resolution/quality to avoid large buffers on device
+        // and speed up upload/processing.
+        imageQuality: 70,
+        maxWidth: 1280,
+        maxHeight: 1280,
+      );
+
+      if (image == null) {
+        if (mounted) setState(() => _isScanningOCR = false);
+        return;
+      }
+
+      if (mounted) setState(() => _selectedImage = image);
+
+      // Send to backend for OCR processing
+      debugPrint('Processing receipt image: ${image.path}');
+      final ocrResult = await widget.apiService.processReceiptImage(
+        imagePath: image.path,
+      );
+
+      if (mounted) {
+        setState(() {
+          if (ocrResult.merchantName != null && ocrResult.merchantName!.isNotEmpty) {
+            _merchantController.text = ocrResult.merchantName!;
+          }
+          if (ocrResult.description != null && ocrResult.description!.isNotEmpty) {
+            _descriptionController.text = ocrResult.description!;
+          }
+          if (ocrResult.amount != null && ocrResult.amount! > 0) {
+            _amountController.text = ocrResult.amount!.toStringAsFixed(2);
+          }
+          _isScanningOCR = false;
+        });
+
+        // Check merchant after OCR
+        if (ocrResult.merchantName != null && ocrResult.merchantName!.length > 2) {
+          _checkMerchantExists();
+        }
+
+        // Show success feedback
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Receipt scanned! Extracted: ${ocrResult.merchantName ?? "merchant"}, ₹${ocrResult.amount ?? "0"}',
+              ),
+              backgroundColor: const Color(0xFF2BDB7C),
+              duration: const Duration(seconds: 3),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isScanningOCR = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Scan failed: $e'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 4),
+          ),
+        );
+      }
+    }
+  }
+
+  /// Show receipt preview dialog for verification
+  void _showReceiptPreviewDialog(XFile image) {
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      builder: (context) => AlertDialog(
+        title: const Text('Receipt Preview'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Receipt image preview
+              Container(
+                width: double.maxFinite,
+                height: 250,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.grey[300]!),
+                ),
+                child: Image.file(
+                  File(image.path),
+                  fit: BoxFit.cover,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.green.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Row(
+                  children: [
+                    Icon(Icons.check_circle, color: Colors.green, size: 20),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Receipt scanned successfully. Fields auto-filled.',
+                        style: TextStyle(fontSize: 12, color: Colors.green),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _selectedImage = null;
+              if (mounted) setState(() {});
+            },
+            child: const Text('Retake'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Done'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Check if merchant already exists in database
+  Future<void> _checkMerchantExists() async {
+    if (_merchantController.text.isEmpty) return;
+
+    try {
+      final result = await widget.apiService.checkMerchantExists(
+        merchantName: _merchantController.text.trim(),
+        userId: widget.userId,
+      );
+
+      if (mounted) {
+        setState(() {
+          _merchantExists = result.exists;
+          _merchantCheckMessage = result.message;
+        });
+
+        if (_merchantExists) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Merchant "${_merchantController.text}" already exists'),
+              backgroundColor: const Color(0xFF2BDB7C),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      debugPrint('Merchant check error: $e');
+      // Non-blocking error - continue anyway
+    }
+  }
+
+  /// Add new merchant if it doesn't exist
+  Future<bool> _addMerchantIfNeeded() async {
+    if (_merchantController.text.isEmpty || _merchantExists) {
+      return true; // Skip if merchant already exists or no merchant name
+    }
+
+    try {
+      final merchantId = await widget.apiService.addMerchant(
+        merchantName: _merchantController.text.trim(),
+        userId: widget.userId,
+        category: _selectedCategory ?? 'Unknown',
+      );
+
+      if (merchantId > 0) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('New merchant "${_merchantController.text}" added'),
+              backgroundColor: Colors.blue,
+            ),
+          );
+        }
+        return true;
+      }
+    } catch (e) {
+      debugPrint('Error adding merchant: $e');
+      // Non-blocking error - continue with transaction
+    }
+    return true;
   }
 
   Future<void> _categorizeTransaction() async {
     if (_descriptionController.text.isEmpty || _amountController.text.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please fill all fields')),
+        const SnackBar(content: Text('Please fill all required fields')),
       );
       return;
     }
@@ -1054,7 +1292,8 @@ class _AddTransactionDialogState extends State<_AddTransactionDialog> {
         amount: double.parse(_amountController.text),
         userId: widget.userId,
         accountId: widget.accountId,
-        txnType: 'debit',
+        merchantName: _merchantController.text,
+        txnType: _transactionType,
         paymentMode: _paymentMode,
       );
 
@@ -1147,6 +1386,9 @@ class _AddTransactionDialogState extends State<_AddTransactionDialog> {
     try {
       if (mounted) setState(() => _isLoading = true);
 
+      // Add merchant if it doesn't exist
+      await _addMerchantIfNeeded();
+
       final response = await widget.apiService.addTransaction(
         rawDescription: _descriptionController.text,
         amount: double.parse(_amountController.text),
@@ -1154,8 +1396,9 @@ class _AddTransactionDialogState extends State<_AddTransactionDialog> {
         subcategory: _selectedSubcategory ?? '',
         userId: widget.userId,
         accountId: widget.accountId,
+        merchantName: _merchantController.text,
         paymentMode: _paymentMode,
-        txnType: 'debit',
+        txnType: _transactionType,
       );
 
       if (mounted) setState(() => _isLoading = false);
@@ -1166,10 +1409,11 @@ class _AddTransactionDialogState extends State<_AddTransactionDialog> {
           userId: widget.userId,
           accountId: widget.accountId,
           amount: double.parse(_amountController.text),
-          txnType: 'debit',
+          txnType: _transactionType,
           category: _selectedCategory,
           subcategory: _selectedSubcategory,
           rawDescription: _descriptionController.text,
+          rawName: _merchantController.text,
           paymentMode: _paymentMode,
           userVerified: true,
           isRecurring: false,
@@ -1202,17 +1446,108 @@ class _AddTransactionDialogState extends State<_AddTransactionDialog> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
-                'Add Transaction',
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    'Add Transaction',
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                  ),
+                  ElevatedButton.icon(
+                    onPressed: _isScanningOCR || _isConfirmingCategory ? null : _scanReceipt,
+                    icon: Icon(
+                      _isScanningOCR
+                          ? Icons.schedule
+                          : _selectedImage != null
+                              ? Icons.check_circle
+                              : Icons.camera_alt,
+                    ),
+                    label: Text(_isScanningOCR
+                        ? 'Scanning...'
+                        : _selectedImage != null
+                            ? 'Scanned'
+                            : 'Scan Receipt'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: _selectedImage != null
+                          ? const Color(0xFF2BDB7C)
+                          : Colors.blue,
+                    ),
+                  ),
+                ],
               ),
               const SizedBox(height: 24),
+              // Receipt image preview
+              if (_selectedImage != null) ...[
+                Container(
+                  width: double.maxFinite,
+                  height: 180,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: const Color(0xFFE5E9EA)),
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: Image.file(
+                      File(_selectedImage!.path),
+                      fit: BoxFit.cover,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF2BDB7C).withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.info, color: Color(0xFF2BDB7C), size: 20),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          _isScanningOCR
+                              ? 'Processing receipt...'
+                              : 'Receipt fields auto-filled. Edit if needed.',
+                          style: const TextStyle(
+                            fontSize: 11,
+                            color: Color(0xFF2BDB7C),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 20),
+              ],
+              TextField(
+                controller: _merchantController,
+                enabled: !_isConfirmingCategory,
+                onChanged: (_) => _checkMerchantExists(),
+                decoration: InputDecoration(
+                  labelText: 'Merchant Name *',
+                  hintText: 'e.g., Starbucks',
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  suffixIcon: _merchantController.text.isNotEmpty
+                      ? Icon(
+                          _merchantExists ? Icons.check_circle : Icons.cancel,
+                          color: _merchantExists ? Colors.orange : Colors.grey,
+                        )
+                      : null,
+                  errorText: _merchantExists
+                      ? 'Merchant already exists'
+                      : null,
+                ),
+              ),
+              const SizedBox(height: 16),
               TextField(
                 controller: _descriptionController,
                 enabled: !_isConfirmingCategory,
                 decoration: InputDecoration(
-                  labelText: 'Description',
-                  hintText: 'e.g., Coffee at Starbucks',
+                  labelText: 'Transaction Description',
+                  hintText: 'e.g., Morning coffee',
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
@@ -1225,7 +1560,7 @@ class _AddTransactionDialogState extends State<_AddTransactionDialog> {
                 keyboardType:
                     const TextInputType.numberWithOptions(decimal: true),
                 decoration: InputDecoration(
-                  labelText: 'Amount (₹)',
+                  labelText: 'Amount (₹) *',
                   hintText: '0.00',
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
@@ -1233,26 +1568,53 @@ class _AddTransactionDialogState extends State<_AddTransactionDialog> {
                 ),
               ),
               const SizedBox(height: 16),
-              DropdownButtonFormField<String>(
-                value: _paymentMode,
-                decoration: InputDecoration(
-                  labelText: 'Payment Mode',
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
+              Row(
+                children: [
+                  Expanded(
+                    child: DropdownButtonFormField<String>(
+                      value: _transactionType,
+                      decoration: InputDecoration(
+                        labelText: 'Type',
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      items: ['debit', 'credit']
+                          .map((type) =>
+                              DropdownMenuItem(value: type, child: Text(type.toUpperCase())))
+                          .toList(),
+                      onChanged: (value) {
+                        if (value != null && mounted) {
+                          setState(() => _transactionType = value);
+                        }
+                      },
+                    ),
                   ),
-                ),
-                items: ['UPI', 'Card', 'Cash', 'Net Banking', 'Wallet']
-                    .map((mode) =>
-                        DropdownMenuItem(value: mode, child: Text(mode)))
-                    .toList(),
-                onChanged: (value) {
-                  if (value != null && mounted) setState(() => _paymentMode = value);
-                },
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: DropdownButtonFormField<String>(
+                      value: _paymentMode,
+                      decoration: InputDecoration(
+                        labelText: 'Payment Mode',
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      items: ['UPI', 'Card', 'Cash', 'Net Banking', 'Wallet']
+                          .map((mode) =>
+                              DropdownMenuItem(value: mode, child: Text(mode)))
+                          .toList(),
+                      onChanged: (value) {
+                        if (value != null && mounted) setState(() => _paymentMode = value);
+                      },
+                    ),
+                  ),
+                ],
               ),
               const SizedBox(height: 24),
               if (_categorizationResult != null)
                 Container(
-                  padding: const EdgeInsets.all(12),
+                  padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
                     color: const Color(0xFFF5F7F8),
                     borderRadius: BorderRadius.circular(12),
@@ -1261,24 +1623,88 @@ class _AddTransactionDialogState extends State<_AddTransactionDialog> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text('Suggested Category:',
-                          style: TextStyle(fontWeight: FontWeight.bold)),
+                      const Text(
+                        'Prediction Result:',
+                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                      ),
                       const SizedBox(height: 8),
-                      Text(
-                        _categorizationResult!.category,
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: Color(0xFF1D2F35),
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(
+                                  _categorizationResult!.category,
+                                  style: const TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                    color: Color(0xFF1D2F35),
+                                  ),
+                                ),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                    vertical: 4,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: (_categorizationResult!.confidenceScore > 0.7
+                                        ? Colors.green
+                                        : Colors.orange)
+                                    .withOpacity(0.1),
+                                    borderRadius: BorderRadius.circular(6),
+                                  ),
+                                  child: Text(
+                                    '${(_categorizationResult!.confidenceScore * 100).toStringAsFixed(0)}%',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.bold,
+                                      color: (_categorizationResult!.confidenceScore > 0.7
+                                          ? Colors.green
+                                          : Colors.orange),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            if (_categorizationResult!.subcategory?.isNotEmpty ?? false) ...[
+                              const SizedBox(height: 4),
+                              Text(
+                                'Sub: ${_categorizationResult!.subcategory}',
+                                style: const TextStyle(fontSize: 12, color: Colors.grey),
+                              ),
+                            ],
+                          ],
                         ),
                       ),
-                      Text(
-                        'Confidence: ${(_categorizationResult!.confidenceScore * 100).toStringAsFixed(1)}%',
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: Colors.grey,
+                      if ((_categorizationResult?.confidenceScore ?? 0) < 0.7) ...[
+                        const SizedBox(height: 8),
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: Colors.orange.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(Icons.info, size: 16, color: Colors.orange),
+                              const SizedBox(width: 8),
+                              const Expanded(
+                                child: Text(
+                                  'Low confidence - please verify category',
+                                  style: TextStyle(fontSize: 12, color: Colors.orange),
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
-                      ),
+                      ],
                     ],
                   ),
                 ),
@@ -1287,16 +1713,17 @@ class _AddTransactionDialogState extends State<_AddTransactionDialog> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   TextButton(
-                    onPressed: _isLoading ? null : () => Navigator.pop(context),
+                    onPressed:
+                        _isLoading || _isScanningOCR ? null : () => Navigator.pop(context),
                     child: const Text('Cancel'),
                   ),
                   ElevatedButton(
-                    onPressed: _isLoading
+                    onPressed: (_isLoading || _isScanningOCR)
                         ? null
                         : (_isConfirmingCategory
                             ? _submitTransaction
                             : _categorizeTransaction),
-                    child: _isLoading
+                    child: (_isLoading || _isScanningOCR)
                         ? const SizedBox(
                             width: 20,
                             height: 20,
@@ -1304,7 +1731,7 @@ class _AddTransactionDialogState extends State<_AddTransactionDialog> {
                           )
                         : Text(_isConfirmingCategory
                             ? 'Add Transaction'
-                            : 'Categorize'),
+                            : 'Get Prediction'),
                   ),
                 ],
               ),
