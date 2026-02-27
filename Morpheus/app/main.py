@@ -58,6 +58,7 @@ templates = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
 from app.routers import dashboard, categorization, anomaly, goal, investment, transactions
 
 app.include_router(dashboard.router)
+app.include_router(dashboard.api_router)
 app.include_router(categorization.router)
 app.include_router(categorization.api_router)
 app.include_router(anomaly.router)

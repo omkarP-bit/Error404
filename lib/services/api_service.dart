@@ -390,6 +390,38 @@ class ApiService {
       rethrow;
     }
   }
+
+  /// Fetch dashboard summary (income vs expense, savings rate, budgets)
+  Future<DashboardSummary> getDashboardSummary({
+    required int userId,
+  }) async {
+    try {
+      final uri = Uri.parse('$baseUrl/dashboard/summary').replace(
+        queryParameters: {'user_id': userId.toString()},
+      );
+
+      final response = await http.get(
+        uri,
+        headers: {'Content-Type': 'application/json'},
+      ).timeout(
+        const Duration(seconds: 30),
+        onTimeout: () => throw TimeoutException('Dashboard summary request timed out'),
+      );
+
+      if (response.statusCode == 200) {
+        final jsonResponse = jsonDecode(response.body);
+        if (jsonResponse['success'] == true) {
+          return DashboardSummary.fromJson(jsonResponse);
+        }
+        throw Exception(jsonResponse['error'] ?? 'Failed to load dashboard summary');
+      } else {
+        throw Exception('Failed to load dashboard summary: ${response.statusCode} - ${response.body}');
+      }
+    } catch (e) {
+      debugPrint('Error in getDashboardSummary: $e');
+      rethrow;
+    }
+  }
 }
 
 // ────────────────────────────────────────────────────────
@@ -412,11 +444,28 @@ class CategorizationResult {
   });
 
   factory CategorizationResult.fromJson(Map<String, dynamic> json) {
+    // Helper to safely convert numeric fields
+    double? _toDouble(dynamic value) {
+      if (value == null) return null;
+      if (value is double) return value;
+      if (value is int) return value.toDouble();
+      if (value is String) return double.tryParse(value);
+      return null;
+    }
+
+    // Helper to safely convert boolean fields
+    bool _toBool(dynamic value) {
+      if (value is bool) return value;
+      if (value is int) return value != 0;
+      if (value is String) return value.toLowerCase() == 'true';
+      return false;
+    }
+
     return CategorizationResult(
       category: json['category'] ?? 'Uncategorized',
       subcategory: json['subcategory'] ?? '',
-      confidenceScore: (json['confidence_score'] ?? 0.0).toDouble(),
-      needsConfirmation: json['needs_confirmation'] ?? false,
+      confidenceScore: _toDouble(json['confidence_score']) ?? 0.0,
+      needsConfirmation: _toBool(json['needs_confirmation']),
       reason: json['reason'],
     );
   }
@@ -717,6 +766,295 @@ class CategoryBreakdown {
     }
     
     return const Color(0xFF8BA5A8); // Gray - default
+  }
+}
+
+// ────────────────────────────────────────────────────────
+// DATA MODELS - DASHBOARD SUMMARY
+// ────────────────────────────────────────────────────────
+
+class DashboardSummary {
+  final IncomeExpenseSummary incomeVsExpense;
+  final double savingsRate;
+  final List<BudgetStatusItem> budgets;
+  final FinancialStability? financialStability;
+  final DateTime? monthStart;
+  final DateTime? generatedAt;
+
+  DashboardSummary({
+    required this.incomeVsExpense,
+    required this.savingsRate,
+    required this.budgets,
+    this.financialStability,
+    this.monthStart,
+    this.generatedAt,
+  });
+
+  factory DashboardSummary.fromJson(Map<String, dynamic> json) {
+    double? _toDouble(dynamic value) {
+      if (value == null) return null;
+      if (value is double) return value;
+      if (value is int) return value.toDouble();
+      if (value is String) return double.tryParse(value);
+      return null;
+    }
+
+    DateTime? _toDate(dynamic value) {
+      if (value == null) return null;
+      return DateTime.tryParse(value.toString());
+    }
+
+    final summary = json['summary'] as Map<String, dynamic>? ?? {};
+    final timeframe = json['timeframe'] as Map<String, dynamic>? ?? {};
+
+    return DashboardSummary(
+      incomeVsExpense: IncomeExpenseSummary.fromJson(
+        summary['income_vs_expense'] as Map<String, dynamic>? ?? {},
+      ),
+      savingsRate: _toDouble(summary['savings_rate']) ?? 0.0,
+      budgets: (summary['budgets'] as List<dynamic>? ?? [])
+          .map((item) => BudgetStatusItem.fromJson(item as Map<String, dynamic>))
+          .toList(),
+      financialStability: summary['financial_stability'] is Map<String, dynamic>
+          ? FinancialStability.fromJson(summary['financial_stability'] as Map<String, dynamic>)
+          : null,
+      monthStart: _toDate(timeframe['month_start']),
+      generatedAt: _toDate(timeframe['generated_at']),
+    );
+  }
+}
+
+class IncomeExpenseSummary {
+  final double income;
+  final double expense;
+  final double net;
+
+  IncomeExpenseSummary({
+    required this.income,
+    required this.expense,
+    required this.net,
+  });
+
+  factory IncomeExpenseSummary.fromJson(Map<String, dynamic> json) {
+    double? _toDouble(dynamic value) {
+      if (value == null) return null;
+      if (value is double) return value;
+      if (value is int) return value.toDouble();
+      if (value is String) return double.tryParse(value);
+      return null;
+    }
+
+    return IncomeExpenseSummary(
+      income: _toDouble(json['income']) ?? 0.0,
+      expense: _toDouble(json['expense']) ?? 0.0,
+      net: _toDouble(json['net']) ?? 0.0,
+    );
+  }
+}
+
+class BudgetStatusItem {
+  final int budgetId;
+  final String category;
+  final String period;
+  final double limitAmount;
+  final double spentAmount;
+  final double remainingAmount;
+  final double utilisationPct;
+
+  BudgetStatusItem({
+    required this.budgetId,
+    required this.category,
+    required this.period,
+    required this.limitAmount,
+    required this.spentAmount,
+    required this.remainingAmount,
+    required this.utilisationPct,
+  });
+
+  factory BudgetStatusItem.fromJson(Map<String, dynamic> json) {
+    double? _toDouble(dynamic value) {
+      if (value == null) return null;
+      if (value is double) return value;
+      if (value is int) return value.toDouble();
+      if (value is String) return double.tryParse(value);
+      return null;
+    }
+
+    int? _toInt(dynamic value) {
+      if (value == null) return null;
+      if (value is int) return value;
+      if (value is double) return value.toInt();
+      if (value is String) return int.tryParse(value);
+      return null;
+    }
+
+    return BudgetStatusItem(
+      budgetId: _toInt(json['budget_id']) ?? 0,
+      category: (json['category'] ?? 'Unknown').toString(),
+      period: (json['period'] ?? 'monthly').toString(),
+      limitAmount: _toDouble(json['limit_amount']) ?? 0.0,
+      spentAmount: _toDouble(json['spent_amount']) ?? 0.0,
+      remainingAmount: _toDouble(json['remaining_amount']) ?? 0.0,
+      utilisationPct: _toDouble(json['utilisation_pct']) ?? 0.0,
+    );
+  }
+}
+
+class FinancialStability {
+  final double score;
+  final String label;
+  final Map<String, ComponentScore> components;
+  final FinancialStabilityMetrics metrics;
+
+  FinancialStability({
+    required this.score,
+    required this.label,
+    required this.components,
+    required this.metrics,
+  });
+
+  ComponentScore? component(String key) => components[key];
+
+  factory FinancialStability.fromJson(Map<String, dynamic> json) {
+    double? _toDouble(dynamic value) {
+      if (value == null) return null;
+      if (value is double) return value;
+      if (value is int) return value.toDouble();
+      if (value is String) return double.tryParse(value);
+      return null;
+    }
+
+    final rawComponents = json['components'] as Map<String, dynamic>? ?? {};
+    final parsedComponents = <String, ComponentScore>{};
+    rawComponents.forEach((key, value) {
+      if (value is Map<String, dynamic>) {
+        parsedComponents[key] = ComponentScore.fromJson(value);
+      }
+    });
+
+    return FinancialStability(
+      score: _toDouble(json['score']) ?? 0.0,
+      label: (json['label'] ?? 'Unknown').toString(),
+      components: parsedComponents,
+      metrics: FinancialStabilityMetrics.fromJson(
+        json['metrics'] as Map<String, dynamic>? ?? {},
+      ),
+    );
+  }
+}
+
+class ComponentScore {
+  final double weight;
+  final double score;
+  final double? valuePct;
+  final double? valueMonths;
+  final String? direction;
+
+  ComponentScore({
+    required this.weight,
+    required this.score,
+    this.valuePct,
+    this.valueMonths,
+    this.direction,
+  });
+
+  factory ComponentScore.fromJson(Map<String, dynamic> json) {
+    double? _toDouble(dynamic value) {
+      if (value == null) return null;
+      if (value is double) return value;
+      if (value is int) return value.toDouble();
+      if (value is String) return double.tryParse(value);
+      return null;
+    }
+
+    return ComponentScore(
+      weight: _toDouble(json['weight']) ?? 0.0,
+      score: _toDouble(json['score']) ?? 0.0,
+      valuePct: _toDouble(json['value_pct']),
+      valueMonths: _toDouble(json['value_months']),
+      direction: json['direction']?.toString(),
+    );
+  }
+}
+
+class FinancialStabilityMetrics {
+  final double monthlyIncome;
+  final double monthlyExpense;
+  final double monthlySavings;
+  final double savingsRatePct;
+  final double expenseRatioPct;
+  final double emergencyFundBalance;
+  final double emergencyMonths;
+  final double emiObligations;
+  final double emiRatioPct;
+  final double incomeCvPct;
+  final List<MonthlyIncomePoint> incomeHistory;
+
+  FinancialStabilityMetrics({
+    required this.monthlyIncome,
+    required this.monthlyExpense,
+    required this.monthlySavings,
+    required this.savingsRatePct,
+    required this.expenseRatioPct,
+    required this.emergencyFundBalance,
+    required this.emergencyMonths,
+    required this.emiObligations,
+    required this.emiRatioPct,
+    required this.incomeCvPct,
+    required this.incomeHistory,
+  });
+
+  factory FinancialStabilityMetrics.fromJson(Map<String, dynamic> json) {
+    double? _toDouble(dynamic value) {
+      if (value == null) return null;
+      if (value is double) return value;
+      if (value is int) return value.toDouble();
+      if (value is String) return double.tryParse(value);
+      return null;
+    }
+
+    final historyList = (json['income_history'] as List<dynamic>? ?? [])
+        .map((item) => MonthlyIncomePoint.fromJson(item as Map<String, dynamic>))
+        .toList();
+
+    return FinancialStabilityMetrics(
+      monthlyIncome: _toDouble(json['monthly_income']) ?? 0.0,
+      monthlyExpense: _toDouble(json['monthly_expense']) ?? 0.0,
+      monthlySavings: _toDouble(json['monthly_savings']) ?? 0.0,
+      savingsRatePct: _toDouble(json['savings_rate_pct']) ?? 0.0,
+      expenseRatioPct: _toDouble(json['expense_ratio_pct']) ?? 0.0,
+      emergencyFundBalance: _toDouble(json['emergency_fund_balance']) ?? 0.0,
+      emergencyMonths: _toDouble(json['emergency_months']) ?? 0.0,
+      emiObligations: _toDouble(json['emi_obligations']) ?? 0.0,
+      emiRatioPct: _toDouble(json['emi_ratio_pct']) ?? 0.0,
+      incomeCvPct: _toDouble(json['income_cv_pct']) ?? 0.0,
+      incomeHistory: historyList,
+    );
+  }
+}
+
+class MonthlyIncomePoint {
+  final String month;
+  final double amount;
+
+  MonthlyIncomePoint({
+    required this.month,
+    required this.amount,
+  });
+
+  factory MonthlyIncomePoint.fromJson(Map<String, dynamic> json) {
+    double? _toDouble(dynamic value) {
+      if (value == null) return null;
+      if (value is double) return value;
+      if (value is int) return value.toDouble();
+      if (value is String) return double.tryParse(value);
+      return null;
+    }
+
+    return MonthlyIncomePoint(
+      month: (json['month'] ?? '').toString(),
+      amount: _toDouble(json['amount']) ?? 0.0,
+    );
   }
 }
 

@@ -3,6 +3,7 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 import 'services/api_service.dart';
+import 'utils/image_compression.dart';
 
 class ExpensesScreen extends StatefulWidget {
   const ExpensesScreen({Key? key}) : super(key: key);
@@ -1079,7 +1080,7 @@ class _AddTransactionDialogState extends State<_AddTransactionDialog> {
         return;
       }
 
-      // Pick image
+      // Pick image with initial compression
       final image = await _imagePicker.pickImage(
         source: source,
         // Reduce resolution/quality to avoid large buffers on device
@@ -1096,10 +1097,22 @@ class _AddTransactionDialogState extends State<_AddTransactionDialog> {
 
       if (mounted) setState(() => _selectedImage = image);
 
+      // Further compress the image before sending to backend
+      debugPrint('Original image path: ${image.path}');
+      String imagePath = image.path;
+      
+      try {
+        imagePath = await ImageCompressionUtil.compressReceiptImage(image.path);
+        debugPrint('Using compressed image: $imagePath');
+      } catch (e) {
+        debugPrint('Image compression failed, using original: $e');
+        // Continue with original image if compression fails
+      }
+
       // Send to backend for OCR processing
-      debugPrint('Processing receipt image: ${image.path}');
+      debugPrint('Processing receipt image: $imagePath');
       final ocrResult = await widget.apiService.processReceiptImage(
-        imagePath: image.path,
+        imagePath: imagePath,
       );
 
       if (mounted) {
@@ -1307,7 +1320,10 @@ class _AddTransactionDialogState extends State<_AddTransactionDialog> {
         });
       }
 
-      if (mounted && result.needsConfirmation) {
+      // Always show the prediction dialog so the user can
+      // see the confidence score and choose to add or
+      // correct the category, regardless of confidence.
+      if (mounted) {
         _showCategoryConfirmationDialog();
       }
     } catch (e) {
@@ -1323,52 +1339,301 @@ class _AddTransactionDialogState extends State<_AddTransactionDialog> {
   void _showCategoryConfirmationDialog() {
     showDialog(
       context: context,
+      barrierDismissible: false,
       builder: (context) => AlertDialog(
-        title: const Text('Confirm Category'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('Does this categorization look correct?'),
-            const SizedBox(height: 16),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: const Color(0xFFF5F7F8),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Suggested: ${_categorizationResult?.category}',
-                    style: const TextStyle(fontWeight: FontWeight.bold),
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text(
+          '📊 Prediction Result',
+          style: TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+            color: Color(0xFF1D2F35),
+          ),
+        ),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Confidence Score Display
+                _buildConfidenceScoreWidget(),
+                const SizedBox(height: 20),
+                
+                // Category Suggestion
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF5F7F8),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: const Color(0xFFE5E9EA),
+                      width: 1.5,
+                    ),
                   ),
-                  if (_categorizationResult?.subcategory != null)
-                    Text('Sub: ${_categorizationResult!.subcategory}'),
-                  Text(
-                    'Confidence: ${(_categorizationResult?.confidenceScore ?? 0 * 100).toStringAsFixed(1)}%',
-                    style: const TextStyle(fontSize: 12, color: Colors.grey),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Suggested Category',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Color(0xFF8BA5A8),
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        _categorizationResult?.category ?? 'Unknown',
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF1D2F35),
+                        ),
+                      ),
+                      if (_categorizationResult?.subcategory != null &&
+                          _categorizationResult!.subcategory.isNotEmpty) ...[
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            const Text(
+                              'Subcategory: ',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Color(0xFF8BA5A8),
+                              ),
+                            ),
+                            Expanded(
+                              child: Text(
+                                _categorizationResult!.subcategory,
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  color: Color(0xFF1D2F35),
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ],
                   ),
-                ],
-              ),
+                ),
+                const SizedBox(height: 16),
+                
+                // Transaction Details Summary
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.grey[100],
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildDetailRow('Amount', '₹${_amountController.text}'),
+                      const SizedBox(height: 8),
+                      _buildDetailRow('Description', _descriptionController.text, maxLines: 2),
+                      if (_merchantController.text.isNotEmpty) ...[
+                        const SizedBox(height: 8),
+                        _buildDetailRow('Merchant', _merchantController.text),
+                      ],
+                    ],
+                  ),
+                ),
+              ],
             ),
-          ],
+          ),
         ),
         actions: [
-          TextButton(
+          TextButton.icon(
             onPressed: () {
               Navigator.pop(context);
-              if (mounted) setState(() => _isConfirmingCategory = false);
+              _showCategoryPickerDialog();
             },
-            child: const Text('Edit'),
+            icon: const Icon(Icons.edit),
+            label: const Text('Correct Category'),
+            style: TextButton.styleFrom(
+              foregroundColor: const Color(0xFF5DF22A),
+            ),
           ),
-          ElevatedButton(
+          ElevatedButton.icon(
             onPressed: () {
               Navigator.pop(context);
               _submitTransaction();
             },
-            child: const Text('Confirm'),
+            icon: const Icon(Icons.check),
+            label: const Text('Add Transaction'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF5DF22A),
+              foregroundColor: const Color(0xFF1D2F35),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildConfidenceScoreWidget() {
+    final confidence = _categorizationResult?.confidenceScore ?? 0.0;
+    final percentage = (confidence * 100).toInt();
+    final isHighConfidence = confidence >= 0.85;
+    
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: isHighConfidence
+              ? [const Color(0xFF5DF22A).withOpacity(0.1), const Color(0xFF5DF22A).withOpacity(0.05)]
+              : [const Color(0xFFFFA500).withOpacity(0.1), const Color(0xFFFFA500).withOpacity(0.05)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: isHighConfidence
+              ? const Color(0xFF5DF22A).withOpacity(0.3)
+              : const Color(0xFFFFA500).withOpacity(0.3),
+          width: 1.5,
+        ),
+      ),
+      child: Column(
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'Confidence Score',
+                style: TextStyle(
+                  fontSize: 14,
+                  color: Color(0xFF8BA5A8),
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              Text(
+                '$percentage%',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: isHighConfidence
+                      ? const Color(0xFF5DF22A)
+                      : const Color(0xFFFFA500),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: LinearProgressIndicator(
+              value: confidence,
+              minHeight: 8,
+              backgroundColor: Colors.grey[300],
+              valueColor: AlwaysStoppedAnimation<Color>(
+                isHighConfidence
+                    ? const Color(0xFF5DF22A)
+                    : const Color(0xFFFFA500),
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            isHighConfidence
+                ? '✓ High confidence - ready to save'
+                : '⚠ Medium confidence - review before saving',
+            style: TextStyle(
+              fontSize: 12,
+              color: isHighConfidence
+                  ? const Color(0xFF5DF22A)
+                  : const Color(0xFFFFA500),
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDetailRow(String label, String value, {int maxLines = 1}) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          width: 80,
+          child: Text(
+            label,
+            style: const TextStyle(
+              fontSize: 12,
+              color: Color(0xFF8BA5A8),
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ),
+        Expanded(
+          child: Text(
+            value,
+            maxLines: maxLines,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              fontSize: 13,
+              color: Color(0xFF1D2F35),
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  void _showCategoryPickerDialog() {
+    final categories = [
+      'Food & Dining',
+      'Transport',
+      'Shopping',
+      'Health & Medical',
+      'Entertainment',
+      'Bills & Utilities',
+      'Education',
+      'Investment',
+      'Savings',
+      'Other',
+    ];
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Select Category'),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: ListView.builder(
+            itemCount: categories.length,
+            itemBuilder: (context, index) {
+              final category = categories[index];
+              final isSelected = _selectedCategory == category;
+              return ListTile(
+                title: Text(category),
+                trailing: isSelected ? const Icon(Icons.check, color: Color(0xFF5DF22A)) : null,
+                onTap: () {
+                  setState(() {
+                    _selectedCategory = category;
+                    _selectedSubcategory = '';
+                  });
+                  Navigator.pop(context);
+                  _showCategoryConfirmationDialog();
+                },
+                selected: isSelected,
+                selectedTileColor: const Color(0xFFF5F7F8),
+              );
+            },
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
           ),
         ],
       ),
@@ -1404,6 +1669,7 @@ class _AddTransactionDialogState extends State<_AddTransactionDialog> {
       if (mounted) setState(() => _isLoading = false);
 
       if (response.success && response.txnId != null) {
+        // Create transaction object from response
         final transaction = Transaction(
           txnId: response.txnId!,
           userId: widget.userId,
@@ -1420,7 +1686,35 @@ class _AddTransactionDialogState extends State<_AddTransactionDialog> {
           txnTimestamp: DateTime.now(),
         );
 
-        widget.onTransactionAdded(transaction);
+        // Trigger callback to update parent with new transaction
+        if (mounted) {
+          widget.onTransactionAdded(transaction);
+        }
+
+        // Show success message
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('✓ Transaction saved! #${response.txnId}'),
+              backgroundColor: const Color(0xFF2BDB7C),
+              duration: const Duration(seconds: 2),
+            ),
+          );
+        }
+
+        // Clear form for next entry
+        if (mounted) {
+          setState(() {
+            _descriptionController.clear();
+            _amountController.clear();
+            _merchantController.clear();
+            _selectedCategory = null;
+            _selectedSubcategory = null;
+            _categorizationResult = null;
+            _selectedImage = null;
+            _isConfirmingCategory = false;
+          });
+        }
       } else {
         throw Exception(response.error ?? 'Failed to add transaction');
       }
@@ -1428,9 +1722,14 @@ class _AddTransactionDialogState extends State<_AddTransactionDialog> {
       if (mounted) setState(() => _isLoading = false);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e')),
+          SnackBar(
+            content: Text('Error saving transaction: $e'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 3),
+          ),
         );
       }
+      debugPrint('Transaction submission error: $e');
     }
   }
 
