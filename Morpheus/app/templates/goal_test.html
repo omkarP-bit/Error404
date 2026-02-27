@@ -1,0 +1,520 @@
+{% extends "base.html" %}
+{% block title %}Goal Feasibility Engine &mdash; FinAI{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div class="page-title">
+    <h1>Goal Feasibility Engine</h1>
+    <p class="subtitle">Capacity-Constrained Monte Carlo Simulation &middot; 750 scenarios &middot; Behavior-aware &middot; Priority-optimized allocation</p>
+  </div>
+</div>
+
+<!-- Assessment Form + Result Panel -->
+<div class="row-2col">
+
+  <!-- Input Form -->
+  <div class="card">
+    <h3 class="card-title">Assess Goal</h3>
+    <div class="form-grid">
+      <div class="form-group">
+        <label>User</label>
+        <select id="selectUser" class="form-control" onchange="populateGoals()">
+          {% for u in users %}
+            <option value="{{ u.user_id }}">{{ u.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Goal</label>
+        <select id="selectGoal" class="form-control">
+          {% for g in goals %}
+            <option value="{{ g.goal_id }}" data-user="{{ g.user_id }}">{{ g.goal_name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+    <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:12px;">
+      <button class="btn btn-primary" onclick="assessGoal(event)">Assess Goal</button>
+      <button class="btn btn-secondary" onclick="assessBulk(event)">Assess All Goals</button>
+    </div>
+  </div>
+
+  <!-- Result Panel -->
+  <div class="card">
+    <h3 class="card-title">Result</h3>
+    <div id="goalResult" class="result-panel">
+      <div class="empty-state">Select a user &amp; goal, then click Assess.</div>
+    </div>
+    <div id="feasGauge" style="height:220px; margin-top:8px;"></div>
+  </div>
+
+</div>
+
+<!-- Extended panels (shown after assessment) -->
+<div id="extendedPanel" style="display:none;">
+
+  <!-- Three-tier Savings Plan -->
+  <div class="card">
+    <h3 class="card-title">Savings Plan</h3>
+    <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:16px; text-align:center;">
+      <div style="background:#fef9c3; border:1px solid #fde047; border-radius:8px; padding:16px;">
+        <div style="font-size:0.74rem; color:#92400e; font-weight:600; text-transform:uppercase; letter-spacing:.05em; margin-bottom:6px;">Required Monthly</div>
+        <div id="spRequired" style="font-size:1.55rem; font-weight:700; color:#92400e;"></div>
+        <div style="font-size:0.71rem; color:#78350f; margin-top:4px;">Mathematical minimum</div>
+      </div>
+      <div style="background:#ffe4e6; border:1px solid #fca5a5; border-radius:8px; padding:16px;">
+        <div style="font-size:0.74rem; color:#9f1239; font-weight:600; text-transform:uppercase; letter-spacing:.05em; margin-bottom:6px;">Feasible Monthly</div>
+        <div id="spFeasible" style="font-size:1.55rem; font-weight:700; color:#be123c;"></div>
+        <div style="font-size:0.71rem; color:#9f1239; margin-top:4px;">Capacity-constrained estimate</div>
+      </div>
+      <div style="background:#dcfce7; border:1px solid #86efac; border-radius:8px; padding:16px;">
+        <div style="font-size:0.74rem; color:#14532d; font-weight:600; text-transform:uppercase; letter-spacing:.05em; margin-bottom:6px;">Recommended Monthly</div>
+        <div id="spRecommended" style="font-size:1.55rem; font-weight:700; color:#166534;"></div>
+        <div style="font-size:0.71rem; color:#15803d; margin-top:4px;">Risk-adjusted safe allocation</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Timeline Recalibration (shown only when delay > 1 month) -->
+  <div class="card" id="timelineCard" style="display:none;">
+    <h3 class="card-title">Timeline Recalibration</h3>
+    <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-bottom:12px;">
+      <div class="result-item">
+        <span class="result-label">Original Deadline</span>
+        <span class="result-value" id="tlOriginal"></span>
+      </div>
+      <div class="result-item">
+        <span class="result-label">Realistic Completion</span>
+        <span class="result-value" id="tlRealistic" style="color:#ef4444;"></span>
+      </div>
+      <div class="result-item">
+        <span class="result-label">Delay</span>
+        <span class="result-value" id="tlDelay" style="color:#f97316;"></span>
+      </div>
+      <div class="result-item">
+        <span class="result-label">Months Left</span>
+        <span class="result-value" id="tlMonths"></span>
+      </div>
+    </div>
+    <div id="tlNote" style="background:#fff7ed; border-left:3px solid #f97316; padding:10px 14px; border-radius:4px; font-size:0.83rem; color:#92400e;"></div>
+  </div>
+
+  <!-- Financial Capacity Breakdown -->
+  <div class="card">
+    <h3 class="card-title">Financial Capacity Breakdown</h3>
+    <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:12px; font-size:0.83rem;">
+      <div class="result-item"><span class="result-label">Monthly Income</span><span class="result-value" id="capIncome"></span></div>
+      <div class="result-item"><span class="result-label">Predicted Expenses</span><span class="result-value" id="capExpenses"></span></div>
+      <div class="result-item"><span class="result-label">Predicted Surplus</span><span class="result-value" id="capSurplus"></span></div>
+      <div class="result-item"><span class="result-label">Stable Surplus</span><span class="result-value" id="capStable"></span></div>
+      <div class="result-item"><span class="result-label">Expense Volatility</span><span class="result-value" id="capVolatility"></span></div>
+      <div class="result-item"><span class="result-label">Liquidity Buffer</span><span class="result-value" id="capBuffer"></span></div>
+      <div class="result-item"><span class="result-label">Surplus 90% CI</span><span class="result-value" id="capCI"></span></div>
+      <div class="result-item"><span class="result-label">Feasible Saving</span><span class="result-value" id="capFeasible"></span></div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Bulk Results -->
+<div id="bulkPanel" class="card" style="display:none;">
+  <h3 class="card-title">Bulk Goal Assessment</h3>
+  <div id="bulkTable"></div>
+</div>
+
+<!-- Existing Goals Table -->
+<div class="card">
+  <h3 class="card-title">Existing Goals (DB)</h3>
+  {% if goals and goals|length > 0 %}
+  <div class="table-responsive">
+    <table class="table">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Goal</th>
+          <th>Priority</th>
+          <th>Target (&#8377;)</th>
+          <th>Saved (&#8377;)</th>
+          <th>Progress</th>
+          <th>Deadline</th>
+          <th>Health</th>
+          <th>Status</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for g in goals %}
+        <tr>
+          <td><small class="text-muted">{{ g.goal_id }}</small></td>
+          <td>{{ g.goal_name }}</td>
+          <td>
+            {% set pc = 'badge-red' if g.priority == 1 else ('badge-yellow' if g.priority == 2 else 'badge-blue') %}
+            <span class="badge {{ pc }}">P{{ g.priority }}</span>
+          </td>
+          <td>&#8377;{{ "{:,.0f}".format(g.target_amount) }}</td>
+          <td>&#8377;{{ "{:,.0f}".format(g.current_amount) }}</td>
+          <td>
+            <div class="progress-bar-wrap" style="width:100px;">
+              <div class="progress-bar {{ 'over-budget' if g.progress_pct > 100 else '' }}"
+                   style="width: {{ [g.progress_pct, 100] | min }}%"></div>
+            </div>
+            <small>{{ "%.0f"|format(g.progress_pct) }}%</small>
+          </td>
+          <td>{{ g.deadline.strftime('%b %Y') if g.deadline else '&mdash;' }}</td>
+          <td>
+            {% if g.health_tag %}
+              {% set ht = g.health_tag %}
+              {% set hc = 'badge-green' if ht == 'On Track' else ('badge-yellow' if ht == 'Tight' else ('badge-orange' if ht == 'Behind' else 'badge-red')) %}
+              <span class="badge {{ hc }}">{{ ht }}</span>
+            {% else %}&mdash;{% endif %}
+          </td>
+          <td>
+            <span class="badge {{ 'badge-green' if g.status.value == 'active' else 'badge-blue' }}">
+              {{ g.status.value }}
+            </span>
+          </td>
+          <td>
+            <button class="btn btn-sm btn-outline"
+              onclick="quickAssess({{ g.user_id }}, {{ g.goal_id }})">Assess</button>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+    <div class="empty-state">No goals in the database.</div>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function inr(v) {
+  return '\u20b9' + (v || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 });
+}
+function tagColor(tag) {
+  return tag === 'On Track' ? '#10b981'
+       : tag === 'Tight'    ? '#f59e0b'
+       : tag === 'Behind'   ? '#f97316'
+       :                      '#ef4444';
+}
+function probColor(p) {
+  return p >= 0.75 ? '#10b981'
+       : p >= 0.50 ? '#f59e0b'
+       : p >= 0.30 ? '#f97316'
+       :             '#ef4444';
+}
+function riskColor(r) {
+  return r === 'low'      ? '#10b981'
+       : r === 'medium'   ? '#f59e0b'
+       : r === 'high'     ? '#f97316'
+       :                    '#ef4444';
+}
+
+// ── Goal dropdown filter ──────────────────────────────────────────────────────
+function populateGoals() {
+  const uid = parseInt(document.getElementById('selectUser').value);
+  const sel = document.getElementById('selectGoal');
+  Array.from(sel.options).forEach(o => {
+    o.style.display = parseInt(o.dataset.user) === uid ? '' : 'none';
+  });
+  const first = Array.from(sel.options).find(o => o.style.display !== 'none');
+  if (first) sel.value = first.value;
+}
+document.addEventListener('DOMContentLoaded', populateGoals);
+
+// ── Assess single goal ────────────────────────────────────────────────────────
+async function assessGoal(evt) {
+  const userId = document.getElementById('selectUser').value;
+  const goalId = document.getElementById('selectGoal').value;
+  const btn    = evt && evt.target ? evt.target : { disabled: false, textContent: '' };
+  const orig   = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = 'Assessing...';
+  document.getElementById('extendedPanel').style.display = 'none';
+  try {
+    const fd = new FormData();
+    fd.append('user_id', userId);
+    fd.append('goal_id', goalId);
+    const resp = await fetch('/api/goal/assess', { method: 'POST', body: fd });
+    const json = await resp.json();
+    displayGoalResult(json);
+  } catch (e) {
+    showToast('Error: ' + e.message, 'error');
+  } finally {
+    btn.disabled    = false;
+    btn.textContent = orig || 'Assess Goal';
+  }
+}
+
+// ── Quick assess from table row ───────────────────────────────────────────────
+function quickAssess(userId, goalId) {
+  document.getElementById('selectUser').value = userId;
+  populateGoals();
+  document.getElementById('selectGoal').value = goalId;
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+  assessGoal(null);
+}
+
+// ── Render full result ────────────────────────────────────────────────────────
+function displayGoalResult(json) {
+  const panel = document.getElementById('goalResult');
+
+  if (!json.success) {
+    panel.innerHTML = '<div class="error-box">Error: ' + json.error + '</div>';
+    if (json.trace) console.error(json.trace);
+    return;
+  }
+
+  const r   = json.result;
+  const prob = r.probability || 0;
+  const pc   = probColor(prob);
+  const tc   = tagColor(r.health_tag);
+  const rc   = riskColor(r.risk_level);
+  const sp   = r.savings_plan    || {};
+  const tl   = r.timeline        || {};
+  const cap  = r.capacity        || {};
+  const sim  = r.simulation_stats || {};
+
+  // ── Header grid ──────────────────────────────────────────────────────────
+  let html = `
+    <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px; margin-bottom:12px;">
+      <div class="result-item" style="grid-column:1/-1;">
+        <span class="result-label">Goal</span>
+        <span class="result-value" style="font-size:1.05rem; font-weight:600;">${r.goal_name}</span>
+      </div>
+      <div class="result-item">
+        <span class="result-label">Probability</span>
+        <span class="result-value" style="color:${pc}; font-size:2rem; font-weight:700;">${r.probability_pct}</span>
+      </div>
+      <div class="result-item">
+        <span class="result-label">Health</span>
+        <span class="badge" style="background:${tc}20; color:${tc}; border:1px solid ${tc}; font-size:0.88rem; padding:5px 12px;">${r.health_tag}</span>
+      </div>
+      <div class="result-item">
+        <span class="result-label">Risk Level</span>
+        <span class="badge" style="background:${rc}20; color:${rc}; border:1px solid ${rc}; font-size:0.88rem; padding:5px 12px;">${r.risk_level || '&mdash;'}</span>
+      </div>
+      <div class="result-item">
+        <span class="result-label">Progress</span>
+        <span class="result-value">${r.progress_pct}%</span>
+      </div>
+      <div class="result-item">
+        <span class="result-label">Simulations</span>
+        <span class="result-value">${sim.n_simulations || '&mdash;'}</span>
+      </div>
+      <div class="result-item">
+        <span class="result-label">Data Sufficiency</span>
+        <span style="font-size:0.78rem; color:#94a3b8;">${r.data_sufficiency || '&mdash;'}</span>
+      </div>
+    </div>`;
+
+  // ── Drivers ──────────────────────────────────────────────────────────────
+  const neg = r.top_negative_drivers || [];
+  const pos = r.top_positive_drivers || [];
+  if (neg.length || pos.length) {
+    html += `<div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:12px;">`;
+    if (neg.length) {
+      html += `<div><div style="color:#ef4444; font-weight:600; font-size:0.81rem; margin-bottom:5px;">Dragging Down</div>`;
+      neg.forEach(d => {
+        html += `<div style="font-size:0.79rem; padding:4px 0; border-bottom:1px solid #f1f5f9; color:#374151;">${d.human_label}</div>`;
+      });
+      html += `</div>`;
+    }
+    if (pos.length) {
+      html += `<div><div style="color:#10b981; font-weight:600; font-size:0.81rem; margin-bottom:5px;">Supporting</div>`;
+      pos.forEach(d => {
+        html += `<div style="font-size:0.79rem; padding:4px 0; border-bottom:1px solid #f1f5f9; color:#374151;">${d.human_label}</div>`;
+      });
+      html += `</div>`;
+    }
+    html += `</div>`;
+  }
+
+  // ── Top discretionary transactions ───────────────────────────────────────
+  const txns = r.top_impact_transactions || [];
+  if (txns.length) {
+    html += `<div style="font-weight:600; font-size:0.82rem; margin-bottom:5px;">Top Discretionary Transactions (90 days)</div>
+    <table class="table" style="font-size:0.78rem; margin-bottom:12px;">
+      <thead><tr><th>Merchant</th><th>Category</th><th>Amount</th><th>Date</th></tr></thead>
+      <tbody>`;
+    txns.forEach(t => {
+      html += `<tr>
+        <td>${t.merchant}</td>
+        <td>${t.category}</td>
+        <td>${inr(t.amount)}</td>
+        <td>${t.date}</td>
+      </tr>`;
+    });
+    html += `</tbody></table>`;
+  }
+
+  // ── Counterfactuals ───────────────────────────────────────────────────────
+  const cf = r.counterfactuals || [];
+  if (cf.length) {
+    html += `<div style="font-weight:600; font-size:0.82rem; margin-bottom:5px;">What-If Scenarios</div>
+    <table class="table" style="font-size:0.78rem; margin-bottom:12px;">
+      <thead><tr><th>Scenario</th><th>Prob. Gain</th><th>New Feasible</th></tr></thead>
+      <tbody>`;
+    cf.forEach(c => {
+      const dPct = ((c.probability_delta || 0) * 100).toFixed(1);
+      const nf   = c.new_feasible_monthly != null ? inr(c.new_feasible_monthly) : '&mdash;';
+      html += `<tr>
+        <td>${c.scenario}</td>
+        <td style="color:#10b981; font-weight:600;">+${dPct}pp</td>
+        <td>${nf}</td>
+      </tr>`;
+    });
+    html += `</tbody></table>`;
+  }
+
+  panel.innerHTML = html;
+
+  // ── Gauge chart ───────────────────────────────────────────────────────────
+  Plotly.newPlot('feasGauge', [{
+    type: 'indicator', mode: 'gauge+number',
+    value: Math.round(prob * 100),
+    number: { suffix: '%', font: { size: 26 } },
+    title: { text: 'Achievement Probability', font: { size: 12 } },
+    gauge: {
+      axis: { range: [0, 100] },
+      steps: [
+        { range: [0,  30], color: '#fee2e2' },
+        { range: [30, 55], color: '#fed7aa' },
+        { range: [55, 75], color: '#fef3c7' },
+        { range: [75,100], color: '#d1fae5' },
+      ],
+      bar: { color: pc },
+      threshold: { line: { color: '#374151', width: 3 }, thickness: 0.75, value: 50 },
+    },
+  }], {
+    paper_bgcolor: 'transparent',
+    font: { color: '#374151', size: 11 },
+    margin: { t: 55, b: 15, l: 20, r: 20 },
+  }, { responsive: true, displayModeBar: false });
+
+  // ── Three-tier savings plan ───────────────────────────────────────────────
+  document.getElementById('spRequired').textContent    = inr(sp.required_monthly    || 0);
+  document.getElementById('spFeasible').textContent    = inr(sp.feasible_monthly    || 0);
+  document.getElementById('spRecommended').textContent = inr(sp.recommended_monthly || 0);
+
+  // ── Timeline ──────────────────────────────────────────────────────────────
+  if (tl.delay_months > 1) {
+    document.getElementById('tlOriginal').textContent  = tl.original_completion || '&mdash;';
+    document.getElementById('tlRealistic').textContent = tl.realistic_completion || '&mdash;';
+    document.getElementById('tlDelay').textContent     = '+' + Math.round(tl.delay_months) + ' months';
+    document.getElementById('tlMonths').textContent    = (tl.months_left || 0).toFixed(1);
+    document.getElementById('tlNote').textContent =
+      'At your current financial capacity, this goal will realistically take ' +
+      Math.round(tl.realistic_months || 0) + ' months instead of ' +
+      Math.round(tl.months_left || 0) + ' months — a delay of ~' +
+      Math.round(tl.delay_months) + ' months. Realistic completion: ' +
+      (tl.realistic_completion || '—');
+    document.getElementById('timelineCard').style.display = 'block';
+  } else {
+    document.getElementById('timelineCard').style.display = 'none';
+  }
+
+  // ── Capacity breakdown ────────────────────────────────────────────────────
+  document.getElementById('capIncome').textContent    = inr(cap.monthly_income     || 0);
+  document.getElementById('capExpenses').textContent  = inr(cap.predicted_expenses || 0);
+  document.getElementById('capSurplus').textContent   = inr(cap.predicted_surplus  || 0);
+  document.getElementById('capStable').textContent    = inr(cap.stable_surplus     || 0);
+  document.getElementById('capVolatility').textContent= (cap.expense_volatility_pct || 0) + '%';
+  const bufOk = cap.liquidity_ok;
+  document.getElementById('capBuffer').textContent =
+    (cap.buffer_months || 0).toFixed(1) + ' mo ' + (bufOk ? '(OK)' : '(LOW)');
+  document.getElementById('capBuffer').style.color = bufOk ? '#10b981' : '#ef4444';
+  document.getElementById('capCI').textContent =
+    inr(cap.confidence_lower || 0) + ' \u2013 ' + inr(cap.confidence_upper || 0);
+  document.getElementById('capFeasible').textContent  = inr(cap.feasible_saving || 0);
+
+  document.getElementById('extendedPanel').style.display = 'block';
+}
+
+// ── Assess all goals for user ──────────────────────────────────────────────────
+async function assessBulk(evt) {
+  const userId = document.getElementById('selectUser').value;
+  const btn    = evt && evt.target ? evt.target : { disabled: false, textContent: '' };
+  const orig   = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = 'Assessing...';
+  try {
+    const fd = new FormData();
+    fd.append('user_id', userId);
+    const resp = await fetch('/api/goal/assess-bulk', { method: 'POST', body: fd });
+    const json = await resp.json();
+    displayBulkResults(json);
+  } catch (e) {
+    showToast('Error: ' + e.message, 'error');
+  } finally {
+    btn.disabled    = false;
+    btn.textContent = orig || 'Assess All Goals';
+  }
+}
+
+function displayBulkResults(json) {
+  const panel = document.getElementById('bulkPanel');
+  panel.style.display = 'block';
+  if (!json.success) {
+    document.getElementById('bulkTable').innerHTML =
+      '<div class="error-box">Error: ' + json.error + '</div>';
+    return;
+  }
+  const results = json.results || [];
+  if (!results.length) {
+    document.getElementById('bulkTable').innerHTML =
+      '<div class="empty-state">No active goals found for this user.</div>';
+    return;
+  }
+  let html = `<table class="table" style="font-size:0.82rem;">
+    <thead>
+      <tr>
+        <th>Goal</th>
+        <th>Probability</th>
+        <th>Health</th>
+        <th>Risk</th>
+        <th>Months Left</th>
+        <th>Required/mo</th>
+        <th>Feasible/mo</th>
+        <th>Delay</th>
+        <th>Top Action</th>
+      </tr>
+    </thead><tbody>`;
+  results.forEach(r => {
+    const pv  = parseFloat((r.probability_pct || '0%').replace('%', '')) / 100;
+    const pc  = probColor(pv);
+    const tc  = tagColor(r.health_tag);
+    const rc  = riskColor(r.risk_level);
+    const del = (r.delay_months && r.delay_months > 1)
+      ? `<span style="color:#f97316; font-weight:600;">+${Math.round(r.delay_months)} mo</span>`
+      : `<span style="color:#10b981;">On time</span>`;
+    html += `<tr>
+      <td><strong>${r.goal_name}</strong></td>
+      <td style="color:${pc}; font-weight:700;">${r.probability_pct || '&mdash;'}</td>
+      <td><span class="badge" style="background:${tc}20; color:${tc};">${r.health_tag || '&mdash;'}</span></td>
+      <td><span style="color:${rc}; font-weight:600; font-size:0.8rem;">${r.risk_level || '&mdash;'}</span></td>
+      <td>${r.months_left != null ? parseFloat(r.months_left).toFixed(1) : '&mdash;'}</td>
+      <td>${r.monthly_required != null ? inr(r.monthly_required) : '&mdash;'}</td>
+      <td>${r.monthly_feasible != null ? inr(r.monthly_feasible) : '&mdash;'}</td>
+      <td>${del}</td>
+      <td style="font-size:0.75rem; color:#64748b; max-width:180px;">${r.top_counterfactual || '&mdash;'}</td>
+    </tr>`;
+  });
+  html += '</tbody></table>';
+  document.getElementById('bulkTable').innerHTML = html;
+  showToast(results.length + ' goals assessed.', 'success');
+}
+
+// ── Toast notification ────────────────────────────────────────────────────────
+function showToast(msg, type) {
+  const el = document.createElement('div');
+  el.className = 'toast toast-' + (type || 'info');
+  el.textContent = msg;
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 4000);
+}
+</script>
+{% endblock %}

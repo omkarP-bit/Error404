@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block title %}Select User — FinAI{% endblock %}
+
+{% block content %}
+<div style="display:flex; flex-direction:column; align-items:center; padding:48px 24px;">
+  <div style="text-align:center; margin-bottom:32px;">
+    <div style="font-size:3rem; margin-bottom:8px;">👥</div>
+    <h1 style="font-size:1.75rem; font-weight:700; color:#111827;">Select a User</h1>
+    <p style="color:#6b7280; margin-top:4px;">Choose a user profile to view their financial dashboard</p>
+  </div>
+
+  {% if users and users|length > 0 %}
+  <div class="user-grid">
+    {% for u in users %}
+    <a href="/dashboard?user_id={{ u.user_id }}" class="user-card">
+      <div class="user-avatar">{{ u.name[0].upper() }}</div>
+      <div class="user-info">
+        <div class="user-name">{{ u.name }}</div>
+        <div class="user-email">{{ u.email }}</div>
+        <div class="user-meta">
+          <span class="badge badge-blue">{{ u.risk_profile.value if u.risk_profile else 'N/A' }}</span>
+          {% if u.monthly_income %}
+          <span class="user-income">₹{{ "{:,.0f}".format(u.monthly_income) }}/mo</span>
+          {% endif %}
+        </div>
+      </div>
+      <div class="user-arrow">→</div>
+    </a>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="card" style="text-align:center; padding:48px; max-width:480px;">
+    <div style="font-size:2.5rem; margin-bottom:12px;">🌱</div>
+    <h3>No Users Found</h3>
+    <p style="color:#6b7280; margin-bottom:20px;">
+      The database is empty. Run the seed script to populate sample data.
+    </p>
+    <code style="background:#f3f4f6; padding:8px 16px; border-radius:6px; font-size:0.85rem;">
+      python data/seed_data.py
+    </code>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

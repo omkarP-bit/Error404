@@ -1,0 +1,4 @@
+rating_id,user_id,score,rating_label,prev_rating_id,rating_delta,improvement_tips,window_months,created_at
+1,1,62.5,Fair,,,"[""Reduce discretionary shopping spend by 15%"", ""Build emergency fund to 3x monthly expense"", ""Start SIP of \u20b95,000 in index fund""]",3,2025-08-30T12:00:00Z
+2,1,68.0,Good,1,5.5,"[""Increase SIP amount by \u20b92,000"", ""Clear credit card outstanding by month end"", ""Add term insurance coverage""]",3,2025-11-28T12:00:00Z
+3,1,72.4,Good,2,4.4,"[""Diversify into debt funds for stability"", ""Automate emergency fund top-up"", ""Review and cancel unused subscriptions""]",3,2026-02-16T12:00:00Z

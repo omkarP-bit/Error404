@@ -1,0 +1,2 @@
+profile_id,user_id,needs_ratio,wants_ratio,savings_ratio,baseline_expense,expense_volatility,avg_monthly_surplus,safe_investable_amount,created_at,updated_at
+1,1,0.52,0.28,0.2,98401.68,0.18,21598.32,12958.99,2025-08-30T12:00:00Z,2026-02-23T12:00:00Z

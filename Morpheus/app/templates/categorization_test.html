@@ -1,0 +1,428 @@
+{% extends "base.html" %}
+{% block title %}Categorization Test — FinAI{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div class="page-title">
+    <h1>🏷️ Transaction Categorization</h1>
+    <p class="subtitle">Pipeline: DB Merchant Cache → User Mapping → SentenceTransformer → TF-IDF SVC</p>
+  </div>
+</div>
+
+<div class="row-2col">
+  <!-- ── Input Form ────────────────────────────────────────────────── -->
+  <div class="card">
+    <h3 class="card-title">🔍 Categorize a Transaction</h3>
+    <form id="catForm">
+      <div class="form-grid">
+        <div class="form-group">
+          <label>Transaction Description</label>
+          <input type="text" name="raw_description" id="raw_description"
+                 value="SWIGGY ORDER 8823" class="form-control" required />
+        </div>
+        <div class="form-group">
+          <label>Merchant Name</label>
+          <input type="text" name="merchant_name" id="merchant_name"
+                 value="Swiggy" class="form-control" />
+        </div>
+        <div class="form-group">
+          <label>Amount (₹)</label>
+          <input type="number" name="amount" id="amount"
+                 value="450" min="1" step="0.01" class="form-control" required />
+        </div>
+        <div class="form-group">
+          <label>Transaction Type</label>
+          <select name="txn_type" class="form-control">
+            <option value="debit" selected>Debit</option>
+            <option value="credit">Credit</option>
+            <option value="transfer">Transfer</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Payment Mode</label>
+          <select name="payment_mode" class="form-control">
+            <option>UPI</option><option>Credit Card</option><option>Debit Card</option>
+            <option>Net Banking</option><option>Cash</option><option>Wallet</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>User</label>
+          <select name="user_id" class="form-control">
+            {% for u in users %}
+              <option value="{{ u.user_id }}">{{ u.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+      <button type="button" class="btn btn-primary" onclick="runCategorize()">
+        🤖 Run Categorization
+      </button>
+      <button type="button" class="btn btn-outline" onclick="retrainModel()">
+        🔄 Retrain Model
+      </button>
+    </form>
+
+    <!-- OCR Upload -->
+    <hr class="divider" />
+    <h4>📷 OCR Receipt Upload</h4>
+    <div class="upload-zone" id="ocrZone">
+      <input type="file" id="ocrFile" accept="image/*" style="display:none"
+             onchange="uploadOCR()" />
+      <p onclick="document.getElementById('ocrFile').click()">
+        Click or drag a receipt image here
+      </p>
+    </div>
+    <div class="form-row" style="margin-top:8px;gap:8px;display:flex;">
+      <div>
+        <label>User</label>
+        <select id="fileUserId" class="form-control">
+          {% for u in users %}<option value="{{ u.user_id }}">{{ u.name }}</option>{% endfor %}
+        </select>
+      </div>
+      <div>
+        <label>Account ID</label>
+        <input type="number" id="fileAccountId" class="form-control" value="1" style="width:80px;" />
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Results Panel ─────────────────────────────────────────────── -->
+  <div class="card">
+    <h3 class="card-title">📋 Prediction Results</h3>
+    <div id="resultPanel" class="result-panel">
+      <div class="empty-state">Run a categorization to see results here.</div>
+    </div>
+
+    <!-- Confirmation Panel (shown when confidence < 0.85, or user clicks "Correct") -->
+    <div id="confirmPanel" style="display:none;" class="confirm-panel">
+      <h4 id="confirmPanelTitle">⚠️ Low Confidence — Please Confirm</h4>
+      <p id="confirmPanelMsg">The model is not confident about this category. Please confirm or correct:</p>
+      <div class="form-grid">
+        <div class="form-group">
+          <label>Confirmed Category</label>
+          <select id="confirmedCat" class="form-control">
+            {% set cats = ["Food & Dining","Groceries","Shopping","Transport","Entertainment",
+                           "Utilities","Healthcare","Finance","Investments","Travel",
+                           "Education","Income","Uncategorized"] %}
+            {% for c in cats %}<option>{{ c }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Subcategory</label>
+          <input type="text" id="confirmedSub" class="form-control" placeholder="Optional" />
+        </div>
+      </div>
+      <button class="btn btn-success" onclick="confirmCategory()">✅ Confirm</button>
+    </div>
+
+    <!-- Add Transaction Panel (shown after successful categorisation) -->
+    <div id="addTxnPanel" style="display:none;" class="confirm-panel">
+      <h4>💾 Save Transaction to Database</h4>
+      <p>Review the predicted category, adjust if needed, then save.</p>
+      <div class="result-grid" id="addTxnSummary" style="margin-bottom:12px;"></div>
+      <div class="form-grid">
+        <div class="form-group">
+          <label>Final Category</label>
+          <select id="addTxnCat" class="form-control">
+            {% set cats = ["Food & Dining","Groceries","Shopping","Transport","Entertainment",
+                           "Utilities","Healthcare","Finance","Investments","Travel",
+                           "Education","Income","Uncategorized"] %}
+            {% for c in cats %}<option>{{ c }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Subcategory <small style="color:#6b7280">(optional)</small></label>
+          <input type="text" id="addTxnSub" class="form-control" placeholder="e.g. Lunch, Taxi" />
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <button class="btn btn-success" onclick="addTransaction()">💾 Add Transaction</button>
+        <button class="btn btn-outline" onclick="document.getElementById('addTxnPanel').style.display='none'">✕ Dismiss</button>
+      </div>
+    </div>
+
+    <!-- Probability Chart -->
+    <div id="probChart" style="height:280px; margin-top:16px;"></div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+// State tracking for the current categorisation result
+let _lastResult   = null;   // full result object from /api/categorize
+let _lastTxnId    = null;   // set only after Add Transaction succeeds
+
+// ── Helpers ──────────────────────────────────────────────────────────────
+function _formValues() {
+  return {
+    raw_description: document.getElementById('raw_description').value,
+    merchant_name:   document.getElementById('merchant_name').value,
+    amount:          document.getElementById('amount').value,
+    txn_type:        document.querySelector('[name="txn_type"]').value,
+    payment_mode:    document.querySelector('[name="payment_mode"]').value,
+    user_id:         document.querySelector('[name="user_id"]').value,
+    account_id:      document.getElementById('fileAccountId').value || '1',
+  };
+}
+
+// ── 1. Run Categorization (no DB insert) ─────────────────────────────────
+async function runCategorize() {
+  const form = document.getElementById('catForm');
+  const data = new FormData(form);
+  data.append('account_id', document.getElementById('fileAccountId').value || '1');
+  const btn  = event.target;
+  btn.disabled = true;
+  btn.textContent = '⏳ Processing…';
+  // Hide stale panels
+  document.getElementById('addTxnPanel').style.display    = 'none';
+  document.getElementById('confirmPanel').style.display   = 'none';
+
+  try {
+    const resp = await fetch('/api/categorize', { method: 'POST', body: data });
+    const json = await resp.json();
+    displayResult(json);
+  } catch(e) {
+    showError(e.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '🤖 Run Categorization';
+  }
+}
+
+// ── 2. Display result + show appropriate panels ───────────────────────────
+function displayResult(json) {
+  const panel = document.getElementById('resultPanel');
+  if (!json.success) {
+    panel.innerHTML = `<div class="error-box">❌ ${json.error}</div>`;
+    return;
+  }
+  const r = json.result;
+  _lastResult = r;
+
+  const confPct   = Math.round((r.confidence || 0) * 100);
+  const confClass = confPct >= 85 ? 'conf-high' : confPct >= 60 ? 'conf-mid' : 'conf-low';
+  const sourceIcon = {
+    'user_feedback_db':  '🧠',
+    'merchant_cache_db': '🗄️',
+    'sentence_transformer': '🤖',
+    'svc_model':         '📊',
+  }[r.pipeline_step] || '🔍';
+
+  panel.innerHTML = `
+    <div class="result-grid">
+      <div class="result-item">
+        <span class="result-label">Category</span>
+        <span class="result-value badge badge-cat">${r.category}</span>
+      </div>
+      <div class="result-item">
+        <span class="result-label">Confidence</span>
+        <span class="confidence-badge ${confClass}">${confPct}%</span>
+      </div>
+      <div class="result-item">
+        <span class="result-label">Source</span>
+        <span class="badge badge-blue">${sourceIcon} ${r.pipeline_step || '—'}</span>
+      </div>
+      <div class="result-item">
+        <span class="result-label">Status</span>
+        <span class="badge ${r.needs_confirmation ? 'badge-orange' : 'badge-green'}">
+          ${r.needs_confirmation ? '⚠️ Low confidence' : '✅ High confidence'}
+        </span>
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;">
+      <button class="btn btn-success btn-sm" onclick="showAddTxnPanel()">💾 Add Transaction</button>
+      <button class="btn btn-outline btn-sm" onclick="showCorrectPanel()">✏️ Correct Category</button>
+    </div>
+  `;
+
+  // Auto-show confirm panel when confidence is low
+  if (r.needs_confirmation) {
+    document.getElementById('confirmPanelTitle').textContent = '⚠️ Low Confidence — Please Confirm';
+    document.getElementById('confirmPanelMsg').textContent   = 'The model is uncertain. Please confirm or correct before saving:';
+    document.getElementById('confirmedCat').value = r.category || '';
+    document.getElementById('confirmPanel').style.display = 'block';
+  }
+
+  // Probability bar chart
+  if (r.probabilities && Object.keys(r.probabilities).length > 0) {
+    const labels = Object.keys(r.probabilities);
+    const values = Object.values(r.probabilities).map(v => Math.round(v * 100));
+    Plotly.newPlot('probChart', [{
+      type: 'bar', orientation: 'h',
+      x: values, y: labels,
+      marker: { color: values.map(v => v >= 85 ? '#10b981' : v >= 60 ? '#f59e0b' : '#ef4444') },
+      text: values.map(v => v + '%'), textposition: 'auto',
+    }], {
+      title: 'Category Probabilities',
+      xaxis: { title: 'Confidence %', range: [0, 100] },
+      margin: { l: 140, r: 20, t: 40, b: 40 },
+      paper_bgcolor: 'transparent', plot_bgcolor: 'transparent',
+      font: { color: '#374151', size: 11 },
+    }, { responsive: true, displayModeBar: false });
+  }
+}
+
+// ── 3. Show Add Transaction panel ────────────────────────────────────────
+function showAddTxnPanel() {
+  if (!_lastResult) return;
+  const r   = _lastResult;
+  const fv  = _formValues();
+  const confPct = Math.round((r.confidence || 0) * 100);
+
+  // Populate summary
+  document.getElementById('addTxnSummary').innerHTML = `
+    <div class="result-item"><span class="result-label">Merchant</span>
+      <span class="result-value">${fv.merchant_name || fv.raw_description}</span></div>
+    <div class="result-item"><span class="result-label">Amount</span>
+      <span class="result-value">&#8377;${parseFloat(fv.amount).toLocaleString('en-IN')}</span></div>
+    <div class="result-item"><span class="result-label">Predicted Category</span>
+      <span class="badge badge-cat">${r.category}</span></div>
+    <div class="result-item"><span class="result-label">Confidence</span>
+      <span class="badge ${confPct >= 85 ? 'badge-green' : 'badge-orange'}">${confPct}%</span></div>
+  `;
+  // Pre-select predicted category
+  document.getElementById('addTxnCat').value = r.category || 'Uncategorized';
+  document.getElementById('addTxnSub').value = r.subcategory || '';
+  document.getElementById('addTxnPanel').style.display = 'block';
+  document.getElementById('addTxnPanel').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+// ── 4. Add Transaction to DB ─────────────────────────────────────────────
+async function addTransaction() {
+  const fv  = _formValues();
+  const cat = document.getElementById('addTxnCat').value;
+  const sub = document.getElementById('addTxnSub').value;
+
+  const data = new FormData();
+  data.append('raw_description', fv.raw_description);
+  data.append('merchant_name',   fv.merchant_name);
+  data.append('amount',          fv.amount);
+  data.append('txn_type',        fv.txn_type);
+  data.append('payment_mode',    fv.payment_mode);
+  data.append('user_id',         fv.user_id);
+  data.append('account_id',      fv.account_id);
+  data.append('category',        cat);
+  data.append('subcategory',     sub);
+
+  const btn = document.querySelector('#addTxnPanel .btn-success');
+  btn.disabled = true; btn.textContent = '⏳ Saving…';
+
+  try {
+    const resp = await fetch('/api/categorize/add-transaction', { method: 'POST', body: data });
+    const json = await resp.json();
+    if (json.success) {
+      _lastTxnId = json.txn_id;
+      document.getElementById('addTxnPanel').style.display = 'none';
+      // Update result panel with saved badge
+      const panel = document.getElementById('resultPanel');
+      const savedBadge = `<div style="margin-top:10px;padding:10px;background:#d1fae5;border-radius:8px;color:#065f46;">
+        ✅ <strong>Transaction #${json.txn_id} saved!</strong>
+        Category: <strong>${json.category}</strong> — Merchant mapping updated for future predictions.
+      </div>`;
+      panel.innerHTML += savedBadge;
+      showSuccess(`Transaction #${json.txn_id} added. Next scan of this merchant hits DB cache instantly.`);
+    } else {
+      showError(json.error || 'Failed to save transaction');
+    }
+  } catch(e) {
+    showError(e.message);
+  } finally {
+    btn.disabled = false; btn.textContent = '💾 Add Transaction';
+  }
+}
+
+// ── 5. Confirm / correct category panel ──────────────────────────────────
+function showCorrectPanel() {
+  document.getElementById('confirmPanelTitle').textContent = '✏️ Correct Category';
+  document.getElementById('confirmPanelMsg').textContent   = 'Override the predicted category:';
+  if (_lastResult) document.getElementById('confirmedCat').value = _lastResult.category || '';
+  document.getElementById('confirmPanel').style.display = 'block';
+}
+
+async function confirmCategory() {
+  if (!_lastTxnId && _lastResult && !_lastResult.txn_id) {
+    // No DB record yet — apply correction directly to Add Transaction panel instead
+    const cat = document.getElementById('confirmedCat').value;
+    document.getElementById('addTxnCat').value = cat;
+    document.getElementById('confirmPanel').style.display = 'none';
+    showAddTxnPanel();
+    showSuccess('Category corrected — now click Add Transaction to save.');
+    return;
+  }
+  const txnId = _lastTxnId || (_lastResult && _lastResult.txn_id);
+  const data = new FormData();
+  data.append('txn_id',                txnId);
+  data.append('corrected_category',    document.getElementById('confirmedCat').value);
+  data.append('corrected_subcategory', document.getElementById('confirmedSub').value);
+  data.append('user_id',               document.querySelector('[name="user_id"]').value);
+
+  const resp = await fetch('/api/categorize/confirm', { method: 'POST', body: data });
+  const json = await resp.json();
+  if (json.success) {
+    document.getElementById('confirmPanel').style.display = 'none';
+    showSuccess('Category confirmed & DB mapping updated. Next scan hits cache instantly!');
+  } else {
+    showError(json.error || 'Confirm failed');
+  }
+}
+
+// ── 6. OCR Upload ─────────────────────────────────────────────────────────
+async function uploadOCR() {
+  const file = document.getElementById('ocrFile').files[0];
+  if (!file) return;
+  const data = new FormData();
+  data.append('file',       file);
+  data.append('user_id',    document.getElementById('fileUserId').value);
+  data.append('account_id', document.getElementById('fileAccountId').value);
+
+  showLoading('ocrZone', 'Reading receipt…');
+  try {
+    const resp = await fetch('/api/categorize/ocr', { method: 'POST', body: data });
+    const json = await resp.json();
+    clearLoading('ocrZone');
+
+    if (json.success && json.result) {
+      const r = json.result;
+      // Autofill the transaction form
+      document.getElementById('raw_description').value = r.ocr_description || r.ocr_merchant || '';
+      document.getElementById('merchant_name').value   = r.ocr_merchant || '';
+      document.getElementById('amount').value          = r.ocr_amount   || '';
+      showSuccess(`OCR done — Merchant: "${r.ocr_merchant}", Amount: ₹${r.ocr_amount}`);
+      // Show categorisation result immediately
+      if (r.category) displayResult({ success: true, result: r });
+    } else {
+      showError(`OCR: ${json.error}`);
+    }
+  } catch(e) {
+    clearLoading('ocrZone');
+    showError('OCR error: ' + e.message);
+  }
+}
+
+// ── 7. Retrain ────────────────────────────────────────────────────────────
+async function retrainModel() {
+  if (!confirm('Retrain the categorization model? This may take a moment.')) return;
+  const btn = event.target;
+  btn.disabled = true; btn.textContent = '⏳ Training…';
+  const resp = await fetch('/api/retrain/categorize', { method: 'POST' });
+  const json = await resp.json();
+  btn.disabled = false; btn.textContent = '🔄 Retrain Model';
+  json.success ? showSuccess('Model retrained! ' + (json.report || ''))
+               : showError(json.error || 'Retrain failed');
+}
+
+// ── Toast helpers ─────────────────────────────────────────────────────────
+function showError(msg)   { showToast('❌ ' + msg, 'error'); }
+function showSuccess(msg) { showToast('✅ ' + msg, 'success'); }
+function showLoading(id, msg)                    { document.getElementById(id).querySelector('p').textContent = msg; }
+function clearLoading(id, msg='Click or drag a file here') { document.getElementById(id).querySelector('p').textContent = msg; }
+function showToast(msg, type = 'info') {
+  const el = document.createElement('div');
+  el.className = `toast toast-${type}`;
+  el.textContent = msg;
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 4500);
+}
+</script>
+{% endblock %}

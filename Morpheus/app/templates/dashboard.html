@@ -1,0 +1,233 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — FinAI{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <!-- User switcher -->
+  <div class="page-title">
+    <h1>📊 Financial Dashboard</h1>
+    <p class="subtitle">AI-powered overview for {{ user.name }}</p>
+  </div>
+  <div class="user-switcher">
+    <label>Switch User:</label>
+    <select onchange="location.href='/dashboard?user_id='+this.value">
+      {% for u in all_users %}
+        <option value="{{ u.user_id }}" {% if u.user_id == user.user_id %}selected{% endif %}>
+          {{ u.name }} (₹{{ '{:,.0f}'.format(u.monthly_income) }}/mo)
+        </option>
+      {% endfor %}
+    </select>
+  </div>
+</div>
+
+<!-- ── KPI Cards ───────────────────────────────────────────────────────── -->
+<div class="kpi-grid">
+  <div class="kpi-card kpi-blue">
+    <div class="kpi-icon">💳</div>
+    <div class="kpi-body">
+      <p class="kpi-label">Total Transactions</p>
+      <p class="kpi-value">{{ '{:,}'.format(total_txns) }}</p>
+    </div>
+  </div>
+  <div class="kpi-card kpi-red">
+    <div class="kpi-icon">📤</div>
+    <div class="kpi-body">
+      <p class="kpi-label">Total Spent</p>
+      <p class="kpi-value">₹{{ '{:,.0f}'.format(total_debit) }}</p>
+    </div>
+  </div>
+  <div class="kpi-card kpi-green">
+    <div class="kpi-icon">📥</div>
+    <div class="kpi-body">
+      <p class="kpi-label">Total Income</p>
+      <p class="kpi-value">₹{{ '{:,.0f}'.format(total_credit) }}</p>
+    </div>
+  </div>
+  <div class="kpi-card {% if net_balance >= 0 %}kpi-green{% else %}kpi-red{% endif %}">
+    <div class="kpi-icon">⚖️</div>
+    <div class="kpi-body">
+      <p class="kpi-label">Net Balance</p>
+      <p class="kpi-value">₹{{ '{:,.0f}'.format(net_balance) }}</p>
+    </div>
+  </div>
+  <div class="kpi-card {% if open_alerts > 0 %}kpi-orange{% else %}kpi-green{% endif %}">
+    <div class="kpi-icon">🔔</div>
+    <div class="kpi-body">
+      <p class="kpi-label">Open Alerts</p>
+      <p class="kpi-value">{{ open_alerts }}</p>
+    </div>
+  </div>
+  <div class="kpi-card kpi-purple">
+    <div class="kpi-icon">👤</div>
+    <div class="kpi-body">
+      <p class="kpi-label">Risk Profile</p>
+      <p class="kpi-value">{{ user.risk_profile.value.title() }}</p>
+    </div>
+  </div>
+</div>
+
+<!-- ── Charts Row ─────────────────────────────────────────────────────── -->
+<div class="row-2col">
+  <!-- Category Pie Chart -->
+  <div class="card">
+    <h3 class="card-title">💰 Spend by Category</h3>
+    <div id="catChart" style="height:320px;"></div>
+  </div>
+
+  <!-- Alerts Panel -->
+  <div class="card">
+    <h3 class="card-title">🚨 Recent Alerts
+      <a href="/anomaly-test" class="badge badge-orange" style="float:right;font-size:0.75rem;">View All</a>
+    </h3>
+    {% if alerts %}
+      <div class="alert-list">
+        {% for a in alerts %}
+        <div class="alert-item alert-{{ a.severity.value }}">
+          <div class="alert-icon">
+            {% if a.severity.value == 'critical' %}🔴
+            {% elif a.severity.value == 'high' %}🟠
+            {% elif a.severity.value == 'medium' %}🟡
+            {% else %}🟢{% endif %}
+          </div>
+          <div class="alert-body">
+            <p class="alert-type">{{ a.alert_type.value.replace('_',' ').title() }}</p>
+            <p class="alert-msg">{{ a.message or 'No details' }}</p>
+            <small class="alert-time">{{ a.created_at.strftime('%d %b %Y %H:%M') if a.created_at else '' }}</small>
+          </div>
+          <span class="badge badge-{{ a.severity.value }}">{{ a.severity.value.upper() }}</span>
+        </div>
+        {% endfor %}
+      </div>
+    {% else %}
+      <div class="empty-state">✅ No open alerts</div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- ── Goals & Budgets ────────────────────────────────────────────────── -->
+<div class="row-2col">
+  <!-- Goals -->
+  <div class="card">
+    <h3 class="card-title">🎯 Financial Goals
+      <a href="/goal-test" class="badge badge-blue" style="float:right;font-size:0.75rem;">Assess</a>
+    </h3>
+    {% if goals %}
+      {% for g in goals[:5] %}
+      <div class="goal-item">
+        <div class="goal-header">
+          <span class="goal-name">{{ g.goal_name }}</span>
+          <span class="goal-amount">₹{{ '{:,.0f}'.format(g.target_amount) }}</span>
+        </div>
+        <div class="progress-bar-wrap">
+          <div class="progress-bar" style="width:{{ g.progress_pct }}%"></div>
+        </div>
+        <div class="goal-footer">
+          <small>₹{{ '{:,.0f}'.format(g.current_amount) }} saved</small>
+          <small>{{ g.progress_pct }}%</small>
+        </div>
+      </div>
+      {% endfor %}
+    {% else %}
+      <div class="empty-state">No goals found.</div>
+    {% endif %}
+  </div>
+
+  <!-- Budgets -->
+  <div class="card">
+    <h3 class="card-title">📋 Monthly Budgets</h3>
+    {% if budgets %}
+      {% for b in budgets[:5] %}
+      <div class="budget-item">
+        <div class="budget-header">
+          <span>{{ b.category }}</span>
+          <span>₹{{ '{:,.0f}'.format(b.spent_amount) }} / ₹{{ '{:,.0f}'.format(b.limit_amount) }}</span>
+        </div>
+        <div class="progress-bar-wrap">
+          <div class="progress-bar {% if b.utilisation_pct > 100 %}over-budget{% elif b.utilisation_pct > 80 %}near-budget{% endif %}"
+               style="width:{{ [b.utilisation_pct, 100] | min }}%"></div>
+        </div>
+        <small>{{ '{:.0f}'.format(b.utilisation_pct) }}% used</small>
+      </div>
+      {% endfor %}
+    {% else %}
+      <div class="empty-state">No budgets found.</div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- ── Recent Transactions ────────────────────────────────────────────── -->
+<div class="card">
+  <h3 class="card-title">🕐 Recent Transactions</h3>
+  <div class="table-responsive">
+    <table class="table">
+      <thead>
+        <tr>
+          <th>#</th><th>Date</th><th>Description</th>
+          <th>Category</th><th>Amount</th><th>Type</th><th>Confidence</th><th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for t in recent_txns %}
+        <tr>
+          <td>{{ t.txn_id }}</td>
+          <td>{{ t.txn_timestamp.strftime('%d %b %Y') if t.txn_timestamp else '' }}</td>
+          <td class="desc-cell">{{ (t.raw_description or '')[:40] }}</td>
+          <td><span class="badge badge-cat">{{ t.category or 'Uncategorized' }}</span></td>
+          <td class="{% if t.txn_type.value == 'credit' %}amount-credit{% else %}amount-debit{% endif %}">
+            {% if t.txn_type.value == 'credit' %}+{% else %}-{% endif %}₹{{ '{:,.0f}'.format(t.amount) }}
+          </td>
+          <td>{{ t.txn_type.value.title() }}</td>
+          <td>
+            {% if t.confidence_score %}
+              {% set pct = (t.confidence_score * 100) | int %}
+              <span class="confidence-badge {% if pct >= 85 %}conf-high{% elif pct >= 60 %}conf-mid{% else %}conf-low{% endif %}">
+                {{ pct }}%
+              </span>
+            {% else %} — {% endif %}
+          </td>
+          <td>
+            {% if t.user_verified %}
+              <span class="badge badge-green">Verified</span>
+            {% elif t.confidence_score and t.confidence_score < 0.85 %}
+              <span class="badge badge-orange">Review</span>
+            {% else %}
+              <span class="badge badge-blue">Auto</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+// Category Pie Chart
+const catData = {
+  labels: [{% for c in cat_spend %}"{{ c.category or 'Other' }}"{% if not loop.last %},{% endif %}{% endfor %}],
+  values: [{% for c in cat_spend %}{{ c.total | round(0) | int }}{% if not loop.last %},{% endif %}{% endfor %}],
+};
+
+const layout = {
+  showlegend: true,
+  legend: { x: 1, y: 0.5 },
+  margin: { l: 20, r: 20, t: 20, b: 20 },
+  paper_bgcolor: 'transparent',
+  font: { color: '#374151' },
+};
+
+Plotly.newPlot('catChart', [{
+  type: 'pie',
+  labels: catData.labels,
+  values: catData.values,
+  hole: 0.4,
+  textinfo: 'percent+label',
+  marker: {
+    colors: ['#3b82f6','#ef4444','#f59e0b','#10b981','#8b5cf6',
+             '#f97316','#06b6d4','#84cc16'],
+  },
+}], layout, { responsive: true, displayModeBar: false });
+</script>
+{% endblock %}

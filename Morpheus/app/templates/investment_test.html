@@ -1,0 +1,259 @@
+{% extends "base.html" %}
+{% block title %}Investment Readiness — FinAI{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div class="page-title">
+    <h1>📈 Investment Readiness Assessor</h1>
+    <p class="subtitle">Logistic Regression + Rule Overrides — Not Ready / Moderately Ready / Ready</p>
+  </div>
+</div>
+
+<div class="row-2col">
+  <!-- ── Input Form ──────────────────────────────────────────────────── -->
+  <div class="card">
+    <h3 class="card-title">🧮 Manual Assessment</h3>
+    <form id="investForm">
+      <div class="form-grid">
+        <div class="form-group">
+          <label>Savings Ratio (0–1)</label>
+          <div class="slider-wrap">
+            <input type="range" name="savings_ratio" id="savRatio"
+                   min="0" max="1" step="0.01" value="0.22"
+                   oninput="document.getElementById('savRatioVal').textContent = (+this.value*100).toFixed(0)+'%'" />
+            <span id="savRatioVal">22%</span>
+          </div>
+          <small class="text-muted">Savings ÷ Total Income</small>
+        </div>
+        <div class="form-group">
+          <label>Surplus Consistency (0–1)</label>
+          <div class="slider-wrap">
+            <input type="range" name="surplus_consistency" id="surpConsist"
+                   min="0" max="1" step="0.01" value="0.65"
+                   oninput="document.getElementById('surpConsistVal').textContent = (+this.value*100).toFixed(0)+'%'" />
+            <span id="surpConsistVal">65%</span>
+          </div>
+          <small class="text-muted">Months with positive surplus ÷ total months</small>
+        </div>
+        <div class="form-group">
+          <label>Emergency Fund Coverage (months)</label>
+          <div class="slider-wrap">
+            <input type="range" name="emergency_fund_coverage" id="efCov"
+                   min="0" max="12" step="0.1" value="3.5"
+                   oninput="document.getElementById('efCovVal').textContent = (+this.value).toFixed(1)+' mo'" />
+            <span id="efCovVal">3.5 mo</span>
+          </div>
+          <small class="text-muted">Emergency fund ÷ monthly expenses</small>
+        </div>
+        <div class="form-group">
+          <label>Income Stability (0–1)</label>
+          <div class="slider-wrap">
+            <input type="range" name="income_stability" id="incStab"
+                   min="0" max="1" step="0.01" value="0.75"
+                   oninput="document.getElementById('incStabVal').textContent = (+this.value*100).toFixed(0)+'%'" />
+            <span id="incStabVal">75%</span>
+          </div>
+          <small class="text-muted">1 – (income std dev ÷ income mean)</small>
+        </div>
+        <div class="form-group" style="grid-column: 1/-1;">
+          <label>Risk Profile</label>
+          <div class="risk-selector">
+            <label class="risk-opt">
+              <input type="radio" name="risk_profile" value="conservative" />
+              <span class="risk-label risk-conservative">🛡️ Conservative</span>
+            </label>
+            <label class="risk-opt">
+              <input type="radio" name="risk_profile" value="moderate" checked />
+              <span class="risk-label risk-moderate">⚖️ Moderate</span>
+            </label>
+            <label class="risk-opt">
+              <input type="radio" name="risk_profile" value="aggressive" />
+              <span class="risk-label risk-aggressive">🚀 Aggressive</span>
+            </label>
+          </div>
+        </div>
+      </div>
+      <button type="button" class="btn btn-primary" onclick="runAssessment()">
+        📊 Assess Readiness
+      </button>
+    </form>
+
+    <hr class="divider" />
+    <h4>👤 Auto-Assess from User Profile</h4>
+    <p class="text-muted">Computes features automatically from user's transaction history.</p>
+    <div class="form-row" style="display:flex; gap:12px; align-items:flex-end;">
+      <div class="form-group" style="margin:0; flex:1;">
+        <label>User</label>
+        <select id="autoUserId" class="form-control">
+          {% for u in users %}
+            <option value="{{ u.user_id }}">{{ u.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <button class="btn btn-secondary" onclick="autoAssess()">⚡ Auto-Assess</button>
+      <button class="btn btn-outline" onclick="retrainModel()">🔄 Retrain</button>
+    </div>
+  </div>
+
+  <!-- ── Result Panel ────────────────────────────────────────────────── -->
+  <div class="card">
+    <h3 class="card-title">📋 Readiness Assessment</h3>
+    <div id="investResult" class="result-panel">
+      <div class="empty-state">Run an assessment to see results here.</div>
+    </div>
+
+    <!-- Rule Override Banner -->
+    <div id="ruleOverrideBanner" class="rule-override-banner" style="display:none;">
+      ⚠️ <strong>Rule Override Applied</strong> — Hard rule(s) overrode the ML model prediction.
+    </div>
+
+    <!-- Probability Chart -->
+    <div id="probChart" style="height:240px;"></div>
+
+    <!-- Recommendations -->
+    <div id="recommendations" style="display:none;">
+      <h4>💡 Recommendations</h4>
+      <ul id="recList" class="rec-list"></ul>
+    </div>
+  </div>
+</div>
+
+<!-- ── Historical Assessments for user ────────────────────────────────── -->
+<div id="historyPanel" class="card" style="display:none;">
+  <h3 class="card-title">📜 Recent Assessments</h3>
+  <div id="historyContent"></div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+async function runAssessment() {
+  const data = new FormData(document.getElementById('investForm'));
+  const btn = event.target;
+  btn.disabled = true; btn.textContent = '⏳ Assessing…';
+
+  try {
+    const resp = await fetch('/api/investment/assess', { method: 'POST', body: data });
+    const json = await resp.json();
+    displayResult(json);
+  } catch(e) {
+    showToast('❌ ' + e.message, 'error');
+  } finally {
+    btn.disabled = false; btn.textContent = '📊 Assess Readiness';
+  }
+}
+
+async function autoAssess() {
+  const userId = document.getElementById('autoUserId').value;
+  const data = new FormData();
+  data.append('user_id', userId);
+  const btn = event.target;
+  btn.disabled = true; btn.textContent = '⏳ Computing…';
+
+  try {
+    const resp = await fetch('/api/investment/assess-user', { method: 'POST', body: data });
+    const json = await resp.json();
+    displayResult(json);
+  } catch(e) {
+    showToast('❌ ' + e.message, 'error');
+  } finally {
+    btn.disabled = false; btn.textContent = '⚡ Auto-Assess';
+  }
+}
+
+function displayResult(json) {
+  const panel = document.getElementById('investResult');
+  if (!json.success) {
+    panel.innerHTML = `<div class="error-box">❌ ${json.error}</div>`;
+    return;
+  }
+  const r = json.result;
+  const label = r.readiness_label;
+  const source = r.decision_source;
+
+  const labelConfig = {
+    'Ready':              { color: '#10b981', bg: '#d1fae5', emoji: '🟢', badge: 'badge-green' },
+    'Moderately Ready':   { color: '#f59e0b', bg: '#fef3c7', emoji: '🟡', badge: 'badge-yellow' },
+    'Not Ready':          { color: '#ef4444', bg: '#fee2e2', emoji: '🔴', badge: 'badge-red'    },
+  };
+  const cfg = labelConfig[label] || labelConfig['Not Ready'];
+
+  panel.innerHTML = `
+    <div class="readiness-verdict" style="background:${cfg.bg}; border-left:4px solid ${cfg.color};">
+      <span class="verdict-emoji">${cfg.emoji}</span>
+      <div class="verdict-body">
+        <div class="verdict-label" style="color:${cfg.color};">${label}</div>
+        <div class="verdict-sub">Confidence: ${r.confidence !== undefined ? Math.round(r.confidence*100) : '—'}%</div>
+      </div>
+    </div>
+    <div class="result-grid" style="margin-top:12px;">
+      <div class="result-item">
+        <span class="result-label">Decision Source</span>
+        <span class="badge ${source === 'rule_override' ? 'badge-orange' : 'badge-blue'}">${source}</span>
+      </div>
+      <div class="result-item">
+        <span class="result-label">Predicted Class</span>
+        <span class="result-value">${r.predicted_class}</span>
+      </div>
+    </div>
+  `;
+
+  // Rule override banner
+  const banner = document.getElementById('ruleOverrideBanner');
+  banner.style.display = (source === 'rule_override') ? 'block' : 'none';
+
+  // Probability chart
+  if (r.probabilities) {
+    const labels = Object.keys(r.probabilities);
+    const values = Object.values(r.probabilities).map(v => Math.round(v * 100));
+    const barColors = labels.map(l => {
+      if (l === 'Ready') return '#10b981';
+      if (l === 'Moderately Ready') return '#f59e0b';
+      return '#ef4444';
+    });
+    Plotly.newPlot('probChart', [{
+      type: 'bar',
+      x: labels, y: values,
+      marker: { color: barColors },
+      text: values.map(v => v + '%'),
+      textposition: 'auto',
+    }], {
+      title: 'Class Probabilities (%)',
+      yaxis: { title: 'Probability %', range: [0, 100] },
+      paper_bgcolor: 'transparent',
+      plot_bgcolor: 'transparent',
+      font: { color: '#374151', size: 11 },
+      margin: { t: 40, b: 40, l: 50, r: 20 },
+    }, { responsive: true, displayModeBar: false });
+  }
+
+  // Recommendations
+  if (r.recommendations && r.recommendations.length > 0) {
+    const recDiv = document.getElementById('recommendations');
+    recDiv.style.display = 'block';
+    const recList = document.getElementById('recList');
+    recList.innerHTML = r.recommendations.map(tip =>
+      `<li class="rec-item">💡 ${tip}</li>`
+    ).join('');
+  }
+}
+
+async function retrainModel() {
+  if (!confirm('Retrain the investment readiness model?')) return;
+  const btn = event.target;
+  btn.disabled = true; btn.textContent = '⏳ Training…';
+  const resp = await fetch('/api/retrain/investment', { method: 'POST' });
+  const json = await resp.json();
+  btn.disabled = false; btn.textContent = '🔄 Retrain';
+  showToast('✅ Retrained! ' + (json.report || ''), 'success');
+}
+
+function showToast(msg, type='info') {
+  const el = document.createElement('div');
+  el.className = `toast toast-${type}`;
+  el.textContent = msg;
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 4000);
+}
+</script>
+{% endblock %}
