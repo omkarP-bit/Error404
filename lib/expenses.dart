@@ -20,6 +20,11 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
   bool _isLoadingBreakdown = true;
   String? _errorMessage;
   AnomalyScanResult? _anomalyScanResult;
+  
+  // Filter state
+  String _selectedCategory = 'All';
+  String _selectedTimePeriod = 'This Month';
+  bool _showAnomaliesExpanded = false;
 
   @override
   void initState() {
@@ -126,13 +131,62 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
     );
   }
 
+  String _extractMerchantName(String? description) {
+    if (description == null || description.isEmpty) {
+      return 'Unknown Merchant';
+    }
+    
+    // Extract the first meaningful word or name from description
+    final parts = description.split(' ');
+    if (parts.isNotEmpty && parts.first.isNotEmpty) {
+      return parts.first;
+    }
+    return description.length > 20 
+      ? '${description.substring(0, 17)}...'
+      : description;
+  }
+
+  List<Transaction> _getFilteredTransactions() {
+    var filtered = _transactions
+        .where((t) => t.txnType == 'debit')
+        .toList();
+
+    // Filter by category
+    if (_selectedCategory != 'All') {
+      filtered = filtered
+          .where((t) => (t.category ?? '').toLowerCase().contains(_selectedCategory.toLowerCase()))
+          .toList();
+    }
+
+    // Filter by date
+    final now = DateTime.now();
+    DateTime startDate;
+    
+    switch (_selectedTimePeriod) {
+      case 'Daily':
+        startDate = DateTime(now.year, now.month, now.day);
+        break;
+      case 'Weekly':
+        startDate = now.subtract(Duration(days: now.weekday - 1));
+        break;
+      case 'This Month':
+      default:
+        startDate = DateTime(now.year, now.month, 1);
+    }
+
+    filtered = filtered
+        .where((t) => t.txnTimestamp.isAfter(startDate))
+        .toList();
+
+    // Sort by date descending
+    filtered.sort((a, b) => b.txnTimestamp.compareTo(a.txnTimestamp));
+    
+    return filtered;
+  }
+
   @override
   Widget build(BuildContext context) {
-    // Filter transactions - only show debits (expenses)
-    final expenseTransactions = _transactions
-        .where((t) => t.txnType == 'debit')
-        .toList()
-        ..sort((a, b) => b.txnTimestamp.compareTo(a.txnTimestamp));
+    final filteredTransactions = _getFilteredTransactions();
 
     return Scaffold(
       backgroundColor: bgColor,
@@ -193,27 +247,50 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
               ),
             ),
           ),
-          Container(
-            margin: const EdgeInsets.only(right: 20, top: 8, bottom: 8),
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: dividerColor),
-            ),
-            child: const Row(
-              children: [
-                Text(
-                  'This Month',
-                  style: TextStyle(
-                    color: Color(0xFF6B7E82),
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
+          PopupMenuButton<String>(
+            offset: const Offset(0, 40),
+            onSelected: (value) {
+              if (mounted) {
+                setState(() => _selectedTimePeriod = value);
+              }
+            },
+            itemBuilder: (BuildContext context) => [
+              const PopupMenuItem(
+                value: 'Daily',
+                child: Text('Daily'),
+              ),
+              const PopupMenuItem(
+                value: 'Weekly',
+                child: Text('Weekly'),
+              ),
+              const PopupMenuItem(
+                value: 'This Month',
+                child: Text('This Month'),
+              ),
+            ],
+            child: Container(
+              margin: const EdgeInsets.only(right: 20, top: 8, bottom: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: dividerColor),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    _selectedTimePeriod,
+                    style: const TextStyle(
+                      color: Color(0xFF6B7E82),
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                    ),
                   ),
-                ),
-                SizedBox(width: 4),
-                Icon(Icons.keyboard_arrow_down, color: Color(0xFF6B7E82), size: 20),
-              ],
+                  const SizedBox(width: 4),
+                  const Icon(Icons.keyboard_arrow_down, color: Color(0xFF6B7E82), size: 20),
+                ],
+              ),
             ),
           ),
         ],
@@ -230,6 +307,20 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
                 padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 24.0),
                 child: Column(
                   children: [
+                    // Category Breakdown at top
+                    if (_isLoadingBreakdown)
+                      const Center(
+                        child: CircularProgressIndicator(
+                          valueColor: AlwaysStoppedAnimation<Color>(accentGreen),
+                        ),
+                      )
+                    else if (_categoryBreakdown != null)
+                      _buildCategoryBreakdown(_categoryBreakdown!)
+                    else
+                      _buildEmptyBreakdown(),
+
+                    const SizedBox(height: 30),
+
                     // Display anomaly warning if detected
                     if (_anomalyScanResult != null && _anomalyScanResult!.totalAnomalies > 0)
                       _buildAnomalyAlert(),
@@ -243,10 +334,10 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
                           valueColor: AlwaysStoppedAnimation<Color>(accentGreen),
                         ),
                       )
-                    else if (expenseTransactions.isEmpty)
+                    else if (filteredTransactions.isEmpty)
                       _buildEmptyState()
                     else
-                      ...expenseTransactions.take(10).map((transaction) {
+                      ...filteredTransactions.take(10).map((transaction) {
                         final isAnomalous = _anomalyScanResult?.anomalies
                                 .any((a) => a.txnId == transaction.txnId) ??
                             false;
@@ -257,20 +348,6 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
                           ],
                         );
                       }).toList(),
-
-                    const SizedBox(height: 30),
-
-                    // Category Breakdown
-                    if (_isLoadingBreakdown)
-                      const Center(
-                        child: CircularProgressIndicator(
-                          valueColor: AlwaysStoppedAnimation<Color>(accentGreen),
-                        ),
-                      )
-                    else if (_categoryBreakdown != null)
-                      _buildCategoryBreakdown(_categoryBreakdown!)
-                    else
-                      _buildEmptyBreakdown(),
 
                     const SizedBox(height: 40), // Space before bottom nav
                   ],
@@ -423,7 +500,7 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
                   children: [
                     Expanded(
                       child: Text(
-                        transaction.rawDescription ?? 'Transaction',
+                        _extractMerchantName(transaction.rawDescription),
                         style: const TextStyle(
                           color: textDark,
                           fontSize: 16,
@@ -532,20 +609,30 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
   }
 
   Widget _buildFilterChips() {
+    final categories = ['All', 'Food', 'Transport', 'Shopping'];
+    
     return Padding(
       padding: const EdgeInsets.only(left: 20.0, top: 16.0),
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
         child: Row(
           children: [
-            _buildChip('All', isSelected: true),
-            const SizedBox(width: 12),
-            _buildChip('Food'),
-            const SizedBox(width: 12),
-            _buildChip('Transport'),
-            const SizedBox(width: 12),
-            _buildChip('Shopping'),
-            const SizedBox(width: 16),
+            ...categories.map((category) {
+              final isSelected = _selectedCategory == category;
+              return Row(
+                children: [
+                  GestureDetector(
+                    onTap: () {
+                      if (mounted) {
+                        setState(() => _selectedCategory = category);
+                      }
+                    },
+                    child: _buildChip(category, isSelected: isSelected),
+                  ),
+                  const SizedBox(width: 12),
+                ],
+              );
+            }).toList(),
             Container(
               padding: const EdgeInsets.all(12),
               decoration: const BoxDecoration(

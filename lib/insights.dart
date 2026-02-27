@@ -15,6 +15,7 @@ class _InsightsScreenState extends State<InsightsScreen> {
   AnomalyScanResult? _anomalyScanResult;
   bool _isLoading = true;
   String? _errorMessage;
+  bool _showAnomaliesExpanded = false;
 
   @override
   void initState() {
@@ -234,63 +235,77 @@ class _InsightsScreenState extends State<InsightsScreen> {
         ),
         const SizedBox(height: 16),
         
-        // Summary Card
-        Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: anomalies.isNotEmpty 
-              ? const Color(0xFFFFF3E0) 
-              : const Color(0xFFE5F9EF),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(
+        // Summary Card - Clickable to expand/collapse
+        GestureDetector(
+          onTap: () {
+            if (mounted && anomalies.isNotEmpty) {
+              setState(() => _showAnomaliesExpanded = !_showAnomaliesExpanded);
+            }
+          },
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
               color: anomalies.isNotEmpty 
-                ? const Color(0xFFFFB74D) 
-                : accentGreen,
+                ? const Color(0xFFFFF3E0) 
+                : const Color(0xFFE5F9EF),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: anomalies.isNotEmpty 
+                  ? const Color(0xFFFFB74D) 
+                  : accentGreen,
+              ),
             ),
-          ),
-          child: Row(
-            children: [
-              Icon(
-                anomalies.isNotEmpty 
-                  ? Icons.warning_amber_rounded 
-                  : Icons.check_circle_rounded,
-                color: anomalies.isNotEmpty ? Colors.orange : accentGreen,
-                size: 32,
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      anomalies.isNotEmpty 
-                        ? '${anomalies.length} Anomalies Detected'
-                        : 'All Transactions Normal',
-                      style: TextStyle(
-                        color: anomalies.isNotEmpty ? Colors.orange : accentGreen,
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      anomalies.isNotEmpty
-                        ? 'Out of ${result.totalScanned} transactions scanned'
-                        : 'No unusual activity detected',
-                      style: const TextStyle(
-                        color: Color(0xFF6B7E82),
-                        fontSize: 13,
-                      ),
-                    ),
-                  ],
+            child: Row(
+              children: [
+                Icon(
+                  anomalies.isNotEmpty 
+                    ? Icons.warning_amber_rounded 
+                    : Icons.check_circle_rounded,
+                  color: anomalies.isNotEmpty ? Colors.orange : accentGreen,
+                  size: 32,
                 ),
-              ),
-            ],
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        anomalies.isNotEmpty 
+                          ? '${anomalies.length} Anomalies Detected'
+                          : 'All Transactions Normal',
+                        style: TextStyle(
+                          color: anomalies.isNotEmpty ? Colors.orange : accentGreen,
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        anomalies.isNotEmpty
+                          ? 'Out of ${result.totalScanned} transactions scanned'
+                          : 'No unusual activity detected',
+                        style: const TextStyle(
+                          color: Color(0xFF6B7E82),
+                          fontSize: 13,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                if (anomalies.isNotEmpty)
+                  Icon(
+                    _showAnomaliesExpanded 
+                      ? Icons.expand_less 
+                      : Icons.expand_more,
+                    color: Colors.orange,
+                  ),
+              ],
+            ),
           ),
         ),
 
-        // Anomalies List
-        if (anomalies.isNotEmpty) ...[
+        // Anomalies List - Only show when expanded or there's something to show
+        if (anomalies.isNotEmpty && _showAnomaliesExpanded) ...[
           const SizedBox(height: 16),
           const Align(
             alignment: Alignment.centerLeft,
