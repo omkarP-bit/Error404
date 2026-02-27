@@ -2,10 +2,13 @@ from fastapi import FastAPI, Request
 from fastapi.responses import RedirectResponse, JSONResponse
 from google_auth_oauthlib.flow import Flow
 from googleapiclient.discovery import build
+from services import extract_transactions, build_subscriptions, calculate_summary
 import os
 
 
 app = FastAPI()
+transactions_store = []
+subscriptions_store = []
 
 os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "1"
 
@@ -34,9 +37,8 @@ def connect_gmail():
 
 @app.get("/auth/callback")
 def auth_callback(request: Request):
-    import base64
-    import re
-    from collections import defaultdict
+
+    global transactions_store, subscriptions_store
 
     flow = Flow.from_client_secrets_file(
         CLIENT_SECRET_FILE,
@@ -47,102 +49,77 @@ def auth_callback(request: Request):
     flow.fetch_token(authorization_response=str(request.url))
     credentials = flow.credentials
 
-    # Build Gmail API service
     service = build("gmail", "v1", credentials=credentials)
 
-    results = service.users().messages().list(
-        userId="me",
-        q='subject:(invoice OR receipt OR charged OR payment)',
-        maxResults=10
-    ).execute()
+    transactions = extract_transactions(service)
+    subscriptions = build_subscriptions(transactions)
+    summary = calculate_summary(subscriptions)
 
-    messages = results.get("messages", [])
-    email_data = []
-
-    def extract_body(payload):
-        if "parts" in payload:
-            for part in payload["parts"]:
-                if part["mimeType"] == "text/plain" and "data" in part["body"]:
-                    data = part["body"]["data"]
-                    decoded = base64.urlsafe_b64decode(data).decode("utf-8", errors="ignore")
-                    return decoded
-        elif "body" in payload and "data" in payload["body"]:
-            data = payload["body"]["data"]
-            decoded = base64.urlsafe_b64decode(data).decode("utf-8", errors="ignore")
-            return decoded
-        return ""
-
-    for msg in messages:
-        message = service.users().messages().get(
-            userId="me",
-            id=msg["id"],
-            format="full"
-        ).execute()
-
-        headers = message.get("payload", {}).get("headers", [])
-        subject = ""
-        sender = ""
-        date_value = ""
-
-        for header in headers:
-            if header["name"] == "Subject":
-                subject = header["value"]
-
-            if header["name"] == "From":
-                raw_sender = header["value"]
-                sender = raw_sender.split("<")[0].replace('"', '').strip()
-
-            if header["name"] == "Date":
-                date_value = header["value"]
-
-        body_text = extract_body(message["payload"])
-        amount_match = re.search(r'₹\s?\d+[\.,]?\d*', body_text)
-        amount = amount_match.group() if amount_match else None
-
-        email_data.append({
-            "subject": subject,
-            "from": sender,
-            "amount_detected": amount,
-            "date": date_value
-        })
-
-    # Group merchants by same amount
-    merchant_groups = defaultdict(list)
-
-    for email in email_data:
-        if email["amount_detected"]:
-            merchant_groups[email["from"]].append(email["amount_detected"])
-
-    subscriptions = []
-
-    for merchant, amounts in merchant_groups.items():
-        if len(amounts) >= 2 and len(set(amounts)) == 1:
-            subscriptions.append({
-                "merchant": merchant,
-                "estimated_amount": amounts[0]
-            })
-
-    # Demo fallback
-    if not subscriptions:
-        subscriptions = [
-            {"merchant": "Netflix", "estimated_amount": "₹649"},
-            {"merchant": "Spotify", "estimated_amount": "₹119"}
-        ]
-
-    # Convert to financial output
-    final_output = []
-
-    for sub in subscriptions:
-        amount_str = sub["estimated_amount"]
-        numeric_amount = int(amount_str.replace("₹", "").replace(",", "").strip())
-
-        final_output.append({
-            "merchant": sub["merchant"],
-            "monthly_cost": numeric_amount,
-            "yearly_cost": numeric_amount * 12
-        })
+    transactions_store = transactions
+    subscriptions_store = subscriptions
 
     return JSONResponse({
         "status": "Gmail connected successfully",
-        "subscriptions": final_output
+        "transactions_detected": len(transactions),
+        "subscriptions": subscriptions,
+        "summary": summary
     })
+
+
+# OUTSIDE CALLBACK (no indentation)
+@app.get("/transactions")
+def get_transactions():
+    return {"transactions": transactions_store}
+
+
+@app.get("/subscriptions")
+def get_subscriptions():
+    return {"subscriptions": subscriptions_store}
+
+
+@app.get("/subscriptions/summary")
+def get_summary():
+    summary = calculate_summary(subscriptions_store)
+    return {"summary": summary}
+
+from pydantic import BaseModel
+
+
+class ManualSubscription(BaseModel):
+    merchant: str
+    amount: float
+    billing_cycle: str  # monthly / yearly
+
+
+@app.post("/subscriptions/manual")
+def add_manual_subscription(subscription: ManualSubscription):
+
+    global subscriptions_store
+
+    if subscription.billing_cycle == "monthly":
+        monthly_cost = subscription.amount
+        yearly_cost = subscription.amount * 12
+    elif subscription.billing_cycle == "yearly":
+        monthly_cost = round(subscription.amount / 12, 2)
+        yearly_cost = subscription.amount
+    else:
+        return {"error": "billing_cycle must be monthly or yearly"}
+
+    new_entry = {
+        "merchant": subscription.merchant.lower(),
+        "monthly_cost": monthly_cost,
+        "yearly_cost": yearly_cost,
+        "billing_cycle": subscription.billing_cycle,
+        "transaction_count": 1,
+        "avg_interval_days": None,
+        "confidence_score": 50,
+        "last_payment_date": None,
+        "status": "manually_added"
+    }
+
+    subscriptions_store.append(new_entry)
+
+    return {
+        "message": "Manual subscription added successfully",
+        "subscription": new_entry
+    }
