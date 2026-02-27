@@ -1,0 +1,12 @@
+﻿__pycache__/
+*.pyc
+*.pyo
+.env
+venv/
+*.db
+*.sqlite3
+ml_models/*/artifacts/*.pkl
+ml_models/*/artifacts/*.joblib
+ml_models/*/artifacts/*.json
+*.log
+.DS_Store

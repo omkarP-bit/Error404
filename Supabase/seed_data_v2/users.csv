@@ -1,0 +1,2 @@
+user_id,auth_uid,name,email,phone,monthly_income,income_type,risk_profile,kyc_status,created_at,updated_at
+1,a1b2c3d4-e5f6-7890-abcd-ef1234567890,Arjun Sharma,arjun.sharma@example.com,+919876543210,120000.0,salaried,moderate,verified,2025-02-26T12:00:00Z,2026-02-21T12:00:00Z

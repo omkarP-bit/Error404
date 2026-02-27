@@ -1,0 +1,13 @@
+instrument_id,fund_category_id,name,isin,risk_level,cagr_1y,cagr_3y,cagr_5y,sip_minimum,nav,nav_date,created_at
+1,7,Nifty 50 Index Fund - Direct,INF846K01EW2,moderate,14.2,13.8,15.1,500,185.42,2026-02-25,2025-05-02T12:00:00Z
+2,1,HDFC Top 100 Fund - Direct,INF179K01VR5,moderate,16.5,14.9,16.2,500,952.18,2026-02-25,2025-05-02T12:00:00Z
+3,2,Axis Midcap Fund - Direct,INF846K01DP1,moderate,18.3,16.4,18.7,500,112.65,2026-02-25,2025-05-02T12:00:00Z
+4,3,SBI Small Cap Fund - Direct,INF200K01RO2,aggressive,22.1,20.5,24.3,500,145.32,2026-02-25,2025-05-02T12:00:00Z
+5,8,Mirae Asset ELSS Tax Saver - Direct,INF769K01DM2,moderate,17.8,15.6,17.9,500,38.74,2026-02-25,2025-05-02T12:00:00Z
+6,6,ICICI Pru Balanced Advantage - Direct,INF109K01Z95,moderate,13.4,12.8,14.2,1000,72.18,2026-02-25,2025-05-02T12:00:00Z
+7,4,HDFC Short Term Debt Fund - Direct,INF179K01XD2,conservative,7.2,6.9,7.1,1000,28.94,2026-02-25,2025-05-02T12:00:00Z
+8,5,SBI Gilt Fund - Direct,INF200K01WE3,conservative,8.1,7.8,8.4,5000,58.62,2026-02-25,2025-05-02T12:00:00Z
+9,1,Kotak Bluechip Fund - Direct,INF174K01LS4,moderate,15.9,14.2,15.8,500,623.45,2026-02-25,2025-05-02T12:00:00Z
+10,2,Nippon India Growth Fund - Direct,INF204K01U66,aggressive,19.4,17.9,19.2,500,3842.1,2026-02-25,2025-05-02T12:00:00Z
+11,7,UTI Nifty Next 50 Index - Direct,INF789F1AND9,moderate,12.8,11.9,13.5,500,24.18,2026-02-25,2025-05-02T12:00:00Z
+12,8,Quant ELSS Tax Saver - Direct,INF966L01AX5,aggressive,25.3,22.1,26.4,500,418.92,2026-02-25,2025-05-02T12:00:00Z

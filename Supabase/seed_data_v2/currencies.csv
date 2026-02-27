@@ -1,0 +1,6 @@
+currency_id,code,name,symbol,created_at
+1,INR,Indian Rupee,₹,2025-01-22T12:00:00Z
+2,USD,US Dollar,$,2025-01-22T12:00:00Z
+3,EUR,Euro,€,2025-01-22T12:00:00Z
+4,GBP,British Pound,£,2025-01-22T12:00:00Z
+5,JPY,Japanese Yen,¥,2025-01-22T12:00:00Z

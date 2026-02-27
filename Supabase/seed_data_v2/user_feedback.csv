@@ -1,0 +1,21 @@
+feedback_id,txn_id,corrected_category,corrected_subcategory,source,created_at
+1,189,Food & Dining,Restaurant,user_ui,2026-01-10T01:14:00Z
+2,94,Transport,Cab,user_ui,2025-10-16T17:29:00Z
+3,208,Travel,Train Ticket,auto_correction,2026-01-22T03:59:00Z
+4,194,Groceries,Supermarket,ocr,2026-01-04T22:08:00Z
+5,68,Housing,Rent,auto_correction,2025-10-04T02:00:00Z
+6,209,Investments,Mutual Fund,user_ui,2026-01-25T18:13:00Z
+7,176,Entertainment,OTT,user_ui,2025-12-29T04:53:00Z
+8,139,Housing,Rent,user_ui,2025-12-02T19:00:00Z
+9,183,Utilities,Mobile Recharge,auto_correction,2026-01-11T23:30:00Z
+10,190,Food & Dining,Restaurant,user_ui,2026-01-17T15:41:00Z
+11,88,Shopping,Clothing,user_ui,2025-10-27T21:24:00Z
+12,187,Food & Dining,Restaurant,user_ui,2026-01-18T23:57:00Z
+13,79,Food & Dining,Restaurant,auto_correction,2025-10-17T08:05:00Z
+14,41,Food & Dining,Restaurant,user_ui,2025-09-08T15:01:00Z
+15,3,Investments,Mutual Fund,pdf,2025-08-06T22:30:00Z
+16,124,Shopping,Clothing,auto_correction,2025-11-07T08:34:00Z
+17,49,Groceries,Supermarket,user_ui,2025-09-24T09:35:00Z
+18,81,Food & Dining,Restaurant,user_ui,2025-10-13T17:06:00Z
+19,204,Transport,Cab,user_ui,2026-01-26T03:25:00Z
+20,126,Transport,Cab,pdf,2025-11-12T22:27:00Z

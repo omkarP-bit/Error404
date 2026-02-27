@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{% block title %}FinAI — Personal Finance Manager{% endblock %}</title>
+  <link rel="stylesheet" href="/static/css/main.css" />
+  <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+  {% block extra_head %}{% endblock %}
+</head>
+<body>
+  <!-- ── Navigation ──────────────────────────────────────────────────── -->
+  <nav class="navbar">
+    <div class="nav-brand">
+      <span class="nav-logo">₹</span>
+      <span class="nav-title">FinAI</span>
+    </div>
+    <ul class="nav-links">
+      <li><a href="/dashboard" class="{% if request.url.path == '/dashboard' %}active{% endif %}">
+        📊 Dashboard
+      </a></li>
+      <li><a href="/categorization-test" class="{% if '/categorization' in request.url.path %}active{% endif %}">
+        🏷️ Categorize
+      </a></li>
+      <li><a href="/anomaly-test" class="{% if '/anomaly' in request.url.path %}active{% endif %}">
+        🚨 Anomaly
+      </a></li>
+      <li><a href="/goal-test" class="{% if '/goal' in request.url.path %}active{% endif %}">
+        🎯 Goals
+      </a></li>
+      <li><a href="/investment-test" class="{% if '/investment' in request.url.path %}active{% endif %}">
+        💼 Invest
+      </a></li>
+    </ul>
+    <div class="nav-actions">
+      <a href="/docs" target="_blank" class="btn btn-outline btn-sm">API Docs</a>
+    </div>
+  </nav>
+
+  <!-- ── Main Content ──────────────────────────────────────────────── -->
+  <main class="main-content">
+    {% block content %}{% endblock %}
+  </main>
+
+  <!-- ── Footer ────────────────────────────────────────────────────── -->
+  <footer class="footer">
+    <p>FinAI Personal Finance Manager &copy; 2026 — AI-Powered Insights</p>
+  </footer>
+
+  <script src="/static/js/main.js"></script>
+  {% block extra_scripts %}{% endblock %}
+</body>
+</html>

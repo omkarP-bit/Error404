@@ -1,0 +1,793 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Financial Projection Engine</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+  <style>
+    :root {
+      --bg:#0f1117; --surface:#1a1d27; --surface2:#22263a; --border:#2e3250;
+      --accent:#6c63ff; --accent2:#00d4aa; --red:#ff5c7a; --yellow:#ffd166;
+      --green:#00c896; --text:#e8eaf6; --text2:#8b90b8;
+      --radius:14px; --shadow:0 4px 24px rgba(0,0,0,.45);
+    }
+    *{margin:0;padding:0;box-sizing:border-box}
+    body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+
+    header{background:linear-gradient(135deg,#1a1d27,#22263a);border-bottom:1px solid var(--border);padding:16px 28px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+    .logo{display:flex;align-items:center;gap:11px}
+    .logo-icon{width:38px;height:38px;border-radius:9px;background:linear-gradient(135deg,var(--accent),var(--accent2));display:flex;align-items:center;justify-content:center;font-size:18px}
+    .logo h1{font-size:1.1rem;font-weight:700}
+    .logo p{font-size:.73rem;color:var(--text2)}
+    .hcontrols{display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+    .uid-wrap{display:flex;align-items:center;gap:7px}
+    .uid-wrap label{font-size:.78rem;color:var(--text2)}
+    .uid-wrap input{background:var(--surface2);border:1px solid var(--border);border-radius:7px;color:var(--text);padding:6px 10px;width:72px;font-size:.88rem;outline:none;transition:border-color .2s}
+    .uid-wrap input:focus{border-color:var(--accent)}
+    .dot{width:8px;height:8px;border-radius:50%;background:var(--green);box-shadow:0 0 6px var(--green);animation:pulse 2s infinite}
+    @keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+
+    .tab-bar{display:flex;gap:3px;padding:14px 28px 0;border-bottom:1px solid var(--border);background:var(--surface);overflow-x:auto}
+    .tab{padding:9px 18px;border-radius:9px 9px 0 0;cursor:pointer;font-size:.82rem;font-weight:600;color:var(--text2);transition:all .18s;white-space:nowrap;border:1px solid transparent;border-bottom:none}
+    .tab:hover{color:var(--text);background:var(--surface2)}
+    .tab.active{color:var(--accent);background:var(--bg);border-color:var(--border)}
+
+    main{padding:24px 28px;max-width:1440px}
+    .tab-content{display:none}.tab-content.active{display:block}
+
+    .btn{padding:8px 18px;border-radius:8px;border:none;cursor:pointer;font-weight:600;font-size:.82rem;transition:all .18s;display:inline-flex;align-items:center;gap:6px}
+    .btn-primary{background:linear-gradient(135deg,var(--accent),#8b5cf6);color:#fff}
+    .btn-primary:hover{transform:translateY(-1px);box-shadow:0 4px 14px rgba(108,99,255,.4)}
+    .btn-success{background:linear-gradient(135deg,var(--accent2),#00a8ff);color:#fff}
+    .btn-success:hover{transform:translateY(-1px);box-shadow:0 4px 14px rgba(0,212,170,.4)}
+    .btn-danger{background:linear-gradient(135deg,var(--red),#ff8c42);color:#fff}
+    .btn-ghost{background:var(--surface2);color:var(--text2);border:1px solid var(--border)}
+    .btn-ghost:hover{color:var(--text);border-color:var(--accent)}
+    .btn:disabled{opacity:.45;cursor:not-allowed;transform:none!important}
+    .btn-sm{padding:5px 12px;font-size:.76rem}
+
+    .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px;box-shadow:var(--shadow)}
+    .card-title{font-size:.72rem;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--text2);margin-bottom:14px}
+
+    .g2{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+    .g3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+    .g4{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+    @media(max-width:900px){.g2,.g3,.g4{grid-template-columns:1fr 1fr}}
+    @media(max-width:580px){.g2,.g3,.g4{grid-template-columns:1fr}}
+
+    .metric{text-align:center;padding:16px 10px}
+    .metric-val{font-size:1.6rem;font-weight:800;line-height:1}
+    .metric-lbl{font-size:.7rem;color:var(--text2);margin-top:5px;text-transform:uppercase;letter-spacing:.06em}
+    .metric-sub{font-size:.72rem;color:var(--text2);margin-top:2px}
+    .cg{color:var(--green)}.cr{color:var(--red)}.cy{color:var(--yellow)}.ca{color:var(--accent)}.ca2{color:var(--accent2)}
+
+    .badge{display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:20px;font-size:.72rem;font-weight:700}
+    .bs{background:rgba(0,200,150,.15);color:var(--green);border:1px solid rgba(0,200,150,.3)}
+    .br{background:rgba(255,92,122,.15);color:var(--red);border:1px solid rgba(255,92,122,.3)}
+
+    .pw{margin-bottom:10px}
+    .pl{display:flex;justify-content:space-between;font-size:.75rem;margin-bottom:4px}
+    .pb{height:7px;border-radius:4px;background:var(--surface2);overflow:hidden}
+    .pf{height:100%;border-radius:4px;transition:width .55s cubic-bezier(.4,0,.2,1)}
+
+    .sh{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;flex-wrap:wrap;gap:8px}
+    .sh-title{font-size:1.05rem;font-weight:700}
+
+    .insight-box{background:linear-gradient(135deg,rgba(108,99,255,.1),rgba(0,212,170,.07));border:1px solid rgba(108,99,255,.3);border-radius:var(--radius);padding:26px 28px;font-size:1.02rem;line-height:1.75;position:relative}
+    .insight-box::before{content:'"';position:absolute;top:8px;left:14px;font-size:3.5rem;color:var(--accent);opacity:.25;font-family:Georgia,serif;line-height:1}
+
+    .opp-card{background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);padding:16px;transition:border-color .18s}
+    .opp-card:hover{border-color:var(--accent2)}
+    .sc-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:5px;margin-top:9px}
+    .sc{background:var(--surface);border:1px solid var(--border);border-radius:7px;padding:7px 5px;text-align:center}
+    .sc.best{border-color:var(--accent2);background:rgba(0,212,170,.08)}
+    .sc .pct{font-size:.68rem;color:var(--text2)}.sc .amt{font-size:.88rem;font-weight:700;color:var(--accent2)}
+
+    .tw{overflow-x:auto}
+    table{width:100%;border-collapse:collapse;font-size:.81rem}
+    th{background:var(--surface2);padding:9px 13px;text-align:left;color:var(--text2);font-size:.7rem;text-transform:uppercase;letter-spacing:.06em}
+    td{padding:9px 13px;border-bottom:1px solid var(--border)}
+    tr:last-child td{border-bottom:none}
+    tr:hover td{background:rgba(255,255,255,.02)}
+    .pill{padding:2px 8px;border-radius:12px;font-size:.68rem;font-weight:700}
+    .pill-g{background:rgba(0,200,150,.15);color:var(--green)}
+    .pill-r{background:rgba(255,92,122,.15);color:var(--red)}
+    .pill-e{background:var(--surface2);color:var(--text2)}
+
+    .dep-alert{background:rgba(255,92,122,.1);border:1px solid rgba(255,92,122,.3);border-radius:9px;padding:11px 16px;font-size:.82rem;color:var(--red);display:flex;align-items:center;gap:9px;margin-bottom:16px}
+
+    .form-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+    @media(max-width:600px){.form-grid{grid-template-columns:1fr}}
+    .form-group{display:flex;flex-direction:column;gap:5px}
+    .form-group label{font-size:.77rem;color:var(--text2);font-weight:600}
+    .form-group input,.form-group select{background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:8px 12px;font-size:.88rem;outline:none;transition:border-color .18s;font-family:inherit}
+    .form-group input:focus,.form-group select:focus{border-color:var(--accent)}
+    .form-group select option{background:var(--surface2)}
+    .type-toggle{display:flex;gap:6px}
+    .type-btn{flex:1;padding:9px;border-radius:8px;border:1px solid var(--border);background:var(--surface2);color:var(--text2);cursor:pointer;font-weight:700;font-size:.85rem;transition:all .18s;text-align:center}
+    .type-btn.active-debit{background:rgba(255,92,122,.15);border-color:var(--red);color:var(--red)}
+    .type-btn.active-credit{background:rgba(0,200,150,.15);border-color:var(--green);color:var(--green)}
+
+    .txn-item{display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--border)}
+    .txn-item:last-child{border-bottom:none}
+    .txn-icon{width:36px;height:36px;border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0}
+    .txn-debit .txn-icon{background:rgba(255,92,122,.15)}
+    .txn-credit .txn-icon{background:rgba(0,200,150,.15)}
+    .txn-info{flex:1;min-width:0}
+    .txn-cat{font-weight:600;font-size:.85rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .txn-desc{font-size:.73rem;color:var(--text2);margin-top:2px}
+    .txn-right{text-align:right;flex-shrink:0}
+    .txn-amt{font-weight:700;font-size:.92rem}
+    .txn-debit .txn-amt{color:var(--red)}
+    .txn-credit .txn-amt{color:var(--green)}
+    .txn-ts{font-size:.7rem;color:var(--text2);margin-top:2px}
+
+    .spinner{display:inline-block;width:16px;height:16px;border:2px solid rgba(255,255,255,.2);border-top-color:var(--accent);border-radius:50%;animation:spin .65s linear infinite}
+    @keyframes spin{to{transform:rotate(360deg)}}
+    .empty{text-align:center;padding:44px 20px;color:var(--text2)}
+    .empty-icon{font-size:2.8rem;margin-bottom:10px}
+
+    #toast{position:fixed;bottom:24px;right:24px;background:var(--surface2);border:1px solid var(--border);border-radius:9px;padding:11px 18px;font-size:.82rem;box-shadow:var(--shadow);z-index:9999;transform:translateY(70px);opacity:0;transition:all .28s;max-width:360px}
+    #toast.show{transform:translateY(0);opacity:1}
+    #toast.ok{border-color:var(--green);color:var(--green)}
+    #toast.err{border-color:var(--red);color:var(--red)}
+    #toast.info{border-color:var(--accent);color:var(--accent)}
+
+    canvas{max-height:300px}
+    .gap{margin-bottom:18px}
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-icon">📈</div>
+    <div><h1>Projection Engine</h1><p>Live data from finance.db · Mistral AI insights</p></div>
+  </div>
+  <div class="hcontrols">
+    <div class="uid-wrap">
+      <label>User ID</label>
+      <input type="number" id="userId" value="1" min="1" onchange="onUserChange()"/>
+    </div>
+    <button class="btn btn-danger btn-sm" id="recomputeBtn" onclick="recompute()">🔄 Recompute All</button>
+    <div class="dot" id="statusDot"></div>
+    <span id="statusLabel" style="font-size:.72rem;color:var(--text2)">Checking…</span>
+  </div>
+</header>
+
+<div class="tab-bar">
+  <div class="tab active" onclick="switchTab('forecast',this)">📊 Forecast</div>
+  <div class="tab" onclick="switchTab('budgets',this)">💰 Adaptive Budgets</div>
+  <div class="tab" onclick="switchTab('savings',this)">✂️ Savings</div>
+  <div class="tab" onclick="switchTab('insights',this)">🤖 AI Insights</div>
+  <div class="tab" onclick="switchTab('transactions',this)">➕ Transactions</div>
+</div>
+
+<main>
+
+<!-- FORECAST -->
+<div class="tab-content active" id="tab-forecast">
+  <div class="sh">
+    <div class="sh-title">Probabilistic Expenditure Forecast</div>
+    <div style="display:flex;gap:7px">
+      <button class="btn btn-primary" id="forecastBtn" onclick="loadForecast()">⚡ Load Forecast</button>
+      <button class="btn btn-ghost btn-sm" onclick="loadForecastFresh()">🔁 Force Fresh</button>
+    </div>
+  </div>
+  <div id="forecastContent"><div class="empty"><div class="empty-icon">📊</div><p>Click "Load Forecast" to run the Monte Carlo simulation on live DB data</p></div></div>
+</div>
+
+<!-- BUDGETS -->
+<div class="tab-content" id="tab-budgets">
+  <div class="sh">
+    <div class="sh-title">Adaptive Category Budgets</div>
+    <button class="btn btn-primary" id="budgetBtn" onclick="loadBudgets()">📊 Load Budgets</button>
+  </div>
+  <div id="budgetContent"><div class="empty"><div class="empty-icon">💰</div><p>Click "Load Budgets" — computed dynamically from your last 3 months of DB transactions</p></div></div>
+</div>
+
+<!-- SAVINGS -->
+<div class="tab-content" id="tab-savings">
+  <div class="sh">
+    <div class="sh-title">Savings Opportunities and Goal Impact</div>
+    <button class="btn btn-primary" id="savingsBtn" onclick="loadSavings()">✂️ Analyse Savings</button>
+  </div>
+  <div id="savingsContent"><div class="empty"><div class="empty-icon">✂️</div><p>Click "Analyse Savings" to run counterfactual spend reduction simulations</p></div></div>
+</div>
+
+<!-- INSIGHTS -->
+<div class="tab-content" id="tab-insights">
+  <div class="sh">
+    <div class="sh-title">AI Financial Insights (Mistral LLM)</div>
+    <button class="btn btn-success" id="insightsBtn" onclick="loadInsights()">✨ Generate Insight</button>
+  </div>
+  <div id="insightsContent"><div class="empty"><div class="empty-icon">🤖</div><p>Click "Generate Insight" to get a real-time Mistral summary of your live spending</p></div></div>
+</div>
+
+<!-- TRANSACTIONS -->
+<div class="tab-content" id="tab-transactions">
+  <div class="g2" style="align-items:start">
+    <div class="card">
+      <div class="card-title">Add New Transaction</div>
+      <div class="form-group gap" style="margin-bottom:14px">
+        <label>Transaction Type</label>
+        <div class="type-toggle">
+          <div class="type-btn active-debit" id="typeDebit" onclick="setTxnType('DEBIT')">💸 DEBIT</div>
+          <div class="type-btn" id="typeCredit" onclick="setTxnType('CREDIT')">💰 CREDIT</div>
+        </div>
+        <input type="hidden" id="txnType" value="DEBIT"/>
+      </div>
+      <div class="form-grid">
+        <div class="form-group">
+          <label>Amount (₹) *</label>
+          <input type="number" id="txnAmount" placeholder="e.g. 450" min="1" step="0.01"/>
+        </div>
+        <div class="form-group">
+          <label>Category *</label>
+          <select id="txnCategory"><option value="">Loading…</option></select>
+        </div>
+        <div class="form-group">
+          <label>Description</label>
+          <input type="text" id="txnDesc" placeholder="e.g. Zomato order"/>
+        </div>
+        <div class="form-group">
+          <label>Date &amp; Time</label>
+          <input type="datetime-local" id="txnDate"/>
+        </div>
+        <div class="form-group">
+          <label>Payment Mode</label>
+          <select id="txnMode">
+            <option value="">— optional —</option>
+            <option>UPI</option><option>Card</option><option>Net Banking</option>
+            <option>Cash</option><option>Wallet</option><option>Auto-debit</option>
+          </select>
+        </div>
+        <div class="form-group" style="justify-content:flex-end;padding-top:22px">
+          <label style="display:flex;align-items:center;gap:7px;cursor:pointer">
+            <input type="checkbox" id="txnRecurring" style="width:15px;height:15px"/>
+            Recurring transaction
+          </label>
+        </div>
+      </div>
+      <div style="margin-top:16px;display:flex;gap:8px">
+        <button class="btn btn-success" id="addTxnBtn" onclick="addTransaction()" style="flex:1">
+          <span id="addBtnTxt">➕ Add Transaction</span>
+        </button>
+        <button class="btn btn-ghost" onclick="clearTxnForm()">✕ Clear</button>
+      </div>
+      <div id="txnResult" style="margin-top:12px"></div>
+    </div>
+
+    <div class="card">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+        <div class="card-title" style="margin-bottom:0">Recent Transactions (Live)</div>
+        <button class="btn btn-ghost btn-sm" onclick="loadRecentTxns()">🔄 Refresh</button>
+      </div>
+      <div id="txnFeed"><div class="empty" style="padding:24px"><p>Loading…</p></div></div>
+    </div>
+  </div>
+</div>
+
+</main>
+<div id="toast"></div>
+
+<script>
+const API = 'http://localhost:8001';
+let forecastChart = null;
+let budgetChart   = null;
+let selectedTxnType = 'DEBIT';
+
+const uid  = () => parseInt(document.getElementById('userId').value) || 1;
+const fmt  = n  => n == null ? '—' : '₹' + Number(n).toLocaleString('en-IN', {maximumFractionDigits: 0});
+const fmtR = n  => n == null ? 0   : Math.round(n);
+
+function toast(msg, type='ok') {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = 'show ' + type;
+  clearTimeout(el._t);
+  el._t = setTimeout(() => el.className = '', 3500);
+}
+
+function errBox(e) {
+  return `<div style="background:rgba(255,92,122,.08);border:1px solid rgba(255,92,122,.3);border-radius:9px;padding:16px;color:var(--red);font-size:.83rem"><strong>Error:</strong> ${e.message || e}</div>`;
+}
+
+async function apiFetch(path, opts) {
+  const res = await fetch(API + path, opts || undefined);
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.detail || 'HTTP ' + res.status);
+  return data;
+}
+
+function switchTab(name, el) {
+  document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  el.classList.add('active');
+}
+
+function onUserChange() {
+  ['forecastContent','budgetContent','savingsContent','insightsContent'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.innerHTML = '<div class="empty"><div class="empty-icon">🔄</div><p>User changed — reload data</p></div>';
+  });
+  loadRecentTxns();
+  populateCategoryDropdown();
+}
+
+async function checkServer() {
+  const dot = document.getElementById('statusDot');
+  const lbl = document.getElementById('statusLabel');
+  try {
+    const d = await apiFetch('/health');
+    dot.style.background = 'var(--green)';
+    dot.style.boxShadow  = '0 0 6px var(--green)';
+    lbl.textContent = (d.service || 'Engine') + ' v' + (d.version || '');
+  } catch {
+    dot.style.background = 'var(--red)';
+    dot.style.boxShadow  = '0 0 6px var(--red)';
+    lbl.textContent = 'Offline';
+    lbl.style.color = 'var(--red)';
+  }
+}
+
+/* ── FORECAST ─────────────────────────────────────────────────────────────── */
+async function loadForecast(fresh) {
+  const btn = document.getElementById('forecastBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Running Monte Carlo…';
+  try {
+    const url = fresh ? `/forecast/${uid()}/fresh` : `/forecast/${uid()}`;
+    const d = await apiFetch(url);
+    renderForecast(d.data || d);
+    const cached = d.data && d.data.from_cache;
+    toast(fresh ? '✅ Fresh forecast from live DB' : ('✅ Forecast loaded' + (cached ? ' (cached)' : ' from DB')));
+  } catch(e) {
+    toast('❌ Forecast: ' + e.message, 'err');
+    document.getElementById('forecastContent').innerHTML = errBox(e);
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '⚡ Load Forecast';
+  }
+}
+
+function loadForecastFresh() { loadForecast(true); }
+
+function renderForecast(d) {
+  const el = document.getElementById('forecastContent');
+  if (!d) { el.innerHTML = errBox(new Error('No data returned')); return; }
+
+  const ps   = d.projected_month_spend || {};
+  const pb   = d.projected_balance_at_month_end || {};
+  const cats = d.category_breakdown || {};
+  const risk = d.depletion_risk_flag;
+  let html = '';
+
+  if (risk) html += `<div class="dep-alert">⚠️ <strong>Depletion Risk</strong>${d.depletion_risk_date ? ' — around <strong>' + d.depletion_risk_date + '</strong>' : ''}</div>`;
+
+  html += `<div class="g4 gap">
+    <div class="card metric"><div class="metric-val ca">${fmt(d.spent_this_month_so_far)}</div><div class="metric-lbl">Spent This Month</div><div class="metric-sub">from live DB</div></div>
+    <div class="card metric"><div class="metric-val ca2">${fmt(ps.median_p50)}</div><div class="metric-lbl">Projected Total P50</div><div class="metric-sub">P25 ${fmt(ps.lower_p25)} · P90 ${fmt(ps.upper_p90)}</div></div>
+    <div class="card metric"><div class="metric-val ${pb.median > 0 ? 'cg' : 'cr'}">${fmt(pb.median)}</div><div class="metric-lbl">Balance at Month-End</div><div class="metric-sub">${fmt(pb.lower)} — ${fmt(pb.upper)}</div></div>
+    <div class="card metric"><div class="metric-val ${risk ? 'cr' : 'cg'}">${risk ? '⚠ At Risk' : '✓ Safe'}</div><div class="metric-lbl">Depletion Risk</div><div class="metric-sub">${d.data_days_available || 0} days · ${d.simulations_run || 0} sims</div></div>
+  </div>`;
+
+  html += `<div class="g4 gap">
+    <div class="card metric"><div class="metric-val cy">${fmt(d.avg_daily_spend)}</div><div class="metric-lbl">Avg Daily Spend</div></div>
+    <div class="card metric"><div class="metric-val">${fmtR(d.spend_volatility)}</div><div class="metric-lbl">Spend Volatility</div></div>
+    <div class="card metric"><div class="metric-val">${(d.weekend_spending_multiplier || 1).toFixed(2)}×</div><div class="metric-lbl">Weekend Multiplier</div></div>
+    <div class="card metric"><div class="metric-val">${Math.round((d.discretionary_ratio || 0) * 100)}%</div><div class="metric-lbl">Discretionary Ratio</div></div>
+  </div>`;
+
+  html += `<div class="g2 gap">
+    <div class="card"><div class="card-title">Confidence Bands — Projected Month-End Spend</div><canvas id="bandChart"></canvas></div>
+    <div class="card"><div class="card-title">Top 10 Categories — P50 Projected Spend</div><canvas id="catChart"></canvas></div>
+  </div>`;
+
+  if (Object.keys(cats).length) {
+    html += `<div class="card"><div class="card-title">Category Breakdown (from DB)</div><div class="tw"><table>
+      <thead><tr><th>Category</th><th>Spent So Far</th><th>P25</th><th>P50 Median</th><th>P90</th></tr></thead><tbody>`;
+    Object.entries(cats).sort((a, b) => b[1].projected_p50 - a[1].projected_p50).forEach(([c, v]) => {
+      html += `<tr><td><strong>${c}</strong></td><td>${fmt(v.spent_so_far)}</td>
+        <td style="color:var(--green)">${fmt(v.projected_p25)}</td>
+        <td style="color:var(--accent2);font-weight:700">${fmt(v.projected_p50)}</td>
+        <td style="color:var(--red)">${fmt(v.projected_p90)}</td></tr>`;
+    });
+    html += `</tbody></table></div></div>`;
+  }
+  el.innerHTML = html;
+
+  if (forecastChart) { forecastChart.destroy(); forecastChart = null; }
+  forecastChart = new Chart(document.getElementById('bandChart').getContext('2d'), {
+    type: 'bar',
+    data: {
+      labels: ['P25 Optimistic', 'P50 Median', 'P90 Pessimistic'],
+      datasets: [{
+        label: 'Projected Spend (₹)',
+        data: [fmtR(ps.lower_p25), fmtR(ps.median_p50), fmtR(ps.upper_p90)],
+        backgroundColor: ['rgba(0,200,150,.7)', 'rgba(108,99,255,.7)', 'rgba(255,92,122,.7)'],
+        borderColor: ['#00c896', '#6c63ff', '#ff5c7a'],
+        borderWidth: 2, borderRadius: 8
+      }]
+    },
+    options: chartOpts()
+  });
+
+  if (Object.keys(cats).length) {
+    const top = Object.entries(cats).sort((a, b) => b[1].projected_p50 - a[1].projected_p50).slice(0, 10);
+    new Chart(document.getElementById('catChart').getContext('2d'), {
+      type: 'bar',
+      data: {
+        labels: top.map(([c]) => c),
+        datasets: [{ label: 'P50', data: top.map(([, v]) => fmtR(v.projected_p50)), backgroundColor: 'rgba(0,212,170,.65)', borderColor: '#00d4aa', borderWidth: 2, borderRadius: 6 }]
+      },
+      options: { ...chartOpts(), indexAxis: 'y' }
+    });
+  }
+}
+
+/* ── BUDGETS ─────────────────────────────────────────────────────────────── */
+async function loadBudgets() {
+  const btn = document.getElementById('budgetBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Computing…';
+  try {
+    const d = await apiFetch(`/forecast/${uid()}/adaptive-budgets`);
+    const list = d.data || [];
+    if (!list.length) throw new Error('No budget data — DB may have no DEBIT transactions for this user');
+    renderBudgets(list);
+    toast(`✅ ${list.length} adaptive budgets loaded from live DB`);
+  } catch(e) {
+    toast('❌ Budgets: ' + e.message, 'err');
+    document.getElementById('budgetContent').innerHTML = errBox(e);
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '📊 Load Budgets';
+  }
+}
+
+function renderBudgets(data) {
+  const el = document.getElementById('budgetContent');
+  const over = data.filter(b => b.is_over_budget);
+
+  let html = `<div class="g3 gap">
+    <div class="card metric"><div class="metric-val ca">${data.length}</div><div class="metric-lbl">Categories Tracked</div></div>
+    <div class="card metric"><div class="metric-val ${over.length ? 'cr' : 'cg'}">${over.length}</div><div class="metric-lbl">Over Budget</div></div>
+    <div class="card metric"><div class="metric-val cg">${data.length - over.length}</div><div class="metric-lbl">Within Budget</div></div>
+  </div>`;
+
+  html += `<div class="g2 gap"><div class="card"><div class="card-title">Budget Utilisation (Live DB Data)</div>`;
+  data.sort((a, b) => b.actual_spend_so_far - a.actual_spend_so_far).forEach(b => {
+    const pct = b.adaptive_budget > 0 ? Math.min((b.actual_spend_so_far / b.adaptive_budget) * 100, 150) : 0;
+    const col = pct > 100 ? 'var(--red)' : pct > 75 ? 'var(--yellow)' : 'var(--green)';
+    html += `<div class="pw">
+      <div class="pl">
+        <span>${b.category} ${b.is_over_budget ? '<span class="pill pill-r">OVER</span>' : ''} ${b.is_fixed_expense ? '<span class="pill pill-e">Fixed</span>' : ''} ${b.is_discretionary ? '<span class="pill pill-g">Flex</span>' : ''}</span>
+        <span style="color:${col};font-weight:700">${fmt(b.actual_spend_so_far)} / ${fmt(b.adaptive_budget)}</span>
+      </div>
+      <div class="pb"><div class="pf" style="width:${Math.min(pct, 100).toFixed(1)}%;background:${col}"></div></div>
+    </div>`;
+  });
+  html += `</div><div class="card"><div class="card-title">Budget vs Spent Chart</div><canvas id="budgetBarChart"></canvas></div></div>`;
+  el.innerHTML = html;
+
+  if (budgetChart) { budgetChart.destroy(); budgetChart = null; }
+  const top = data.slice(0, 12);
+  budgetChart = new Chart(document.getElementById('budgetBarChart').getContext('2d'), {
+    type: 'bar',
+    data: {
+      labels: top.map(b => b.category),
+      datasets: [
+        { label: 'Adaptive Budget', data: top.map(b => fmtR(b.adaptive_budget)), backgroundColor: 'rgba(108,99,255,.5)', borderColor: '#6c63ff', borderWidth: 2, borderRadius: 6 },
+        { label: 'Spent So Far',    data: top.map(b => fmtR(b.actual_spend_so_far)), backgroundColor: top.map(b => b.is_over_budget ? 'rgba(255,92,122,.7)' : 'rgba(0,212,170,.6)'), borderColor: top.map(b => b.is_over_budget ? '#ff5c7a' : '#00d4aa'), borderWidth: 2, borderRadius: 6 }
+      ]
+    },
+    options: { ...chartOpts(), scales: {
+      x: { grid: { color: 'rgba(255,255,255,.05)' }, ticks: { color: '#8b90b8', maxRotation: 45 } },
+      y: { grid: { color: 'rgba(255,255,255,.05)' }, ticks: { color: '#8b90b8', callback: v => '₹' + v.toLocaleString('en-IN') } }
+    }}
+  });
+}
+
+/* ── SAVINGS ─────────────────────────────────────────────────────────────── */
+async function loadSavings() {
+  const btn = document.getElementById('savingsBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Analysing…';
+  try {
+    const d = await apiFetch(`/savings-opportunities/${uid()}`);
+    renderSavings(d.data || d);
+    toast('✅ Savings analysis complete');
+  } catch(e) {
+    toast('❌ Savings: ' + e.message, 'err');
+    document.getElementById('savingsContent').innerHTML = errBox(e);
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '✂️ Analyse Savings';
+  }
+}
+
+function renderSavings(d) {
+  const el = document.getElementById('savingsContent');
+  const opps = d.opportunities || [];
+  const gi   = d.goal_impact || {};
+
+  let html = `<div class="g4 gap">
+    <div class="card metric"><div class="metric-val cg">${fmt(d.total_potential_monthly_savings)}</div><div class="metric-lbl">Total Savings Potential</div></div>
+    <div class="card metric"><div class="metric-val ca">${opps.length}</div><div class="metric-lbl">Opportunities Found</div></div>
+    <div class="card metric"><div class="metric-val ca2">${fmt(d.projected_balance_median)}</div><div class="metric-lbl">Projected Balance</div></div>
+    <div class="card metric"><div class="metric-val ${gi.goal_feasibility_flag ? 'cg' : 'cr'}">${gi.goal_feasibility_flag ? '✓ Feasible' : '⚠ Shortfall'}</div><div class="metric-lbl">Goal Feasibility</div></div>
+  </div>`;
+
+  if (opps.length) {
+    html += `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px" class="gap">`;
+    opps.forEach(o => {
+      const sc = o.scenarios || {};
+      html += `<div class="opp-card">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px">
+          <div><div style="font-weight:700">${o.category}</div><div style="font-size:.74rem;color:var(--text2)">Spent: ${fmt(o.current_spend_this_month)}</div></div>
+          <div style="text-align:right"><div style="font-size:1.05rem;font-weight:800;color:var(--green)">${fmt(o.best_scenario && o.best_scenario.amount_saved)}</div><div style="font-size:.68rem;color:var(--text2)">best save</div></div>
+        </div>
+        <div style="font-size:.74rem;color:var(--text2);font-style:italic;margin-bottom:8px">${o.insight}</div>
+        <div class="sc-grid">
+          ${['5','10','15','20'].map(p => {
+            const k = 'reduction_' + p + 'pct';
+            const s = sc[k];
+            const best = o.best_scenario && String(o.best_scenario.reduction_pct) === p;
+            return `<div class="sc ${best ? 'best' : ''}"><div class="pct">${p}% cut</div><div class="amt">${s ? fmt(s.amount_saved) : '—'}</div></div>`;
+          }).join('')}
+        </div>
+      </div>`;
+    });
+    html += `</div>`;
+  } else {
+    html += `<div class="empty"><div class="empty-icon">✂️</div><p>No discretionary savings opportunities found for this month.</p></div>`;
+  }
+
+  if ((gi.goals || []).length) {
+    html += `<div class="card"><div class="card-title">Goal Impact (from live goals table)</div>
+      <div class="g3 gap">
+        <div class="card metric" style="background:var(--surface2)"><div class="metric-val">${gi.goals_evaluated}</div><div class="metric-lbl">Goals Evaluated</div></div>
+        <div class="card metric" style="background:var(--surface2)"><div class="metric-val cr">${fmt(gi.total_monthly_goal_requirement)}</div><div class="metric-lbl">Monthly Need</div></div>
+        <div class="card metric" style="background:var(--surface2)"><div class="metric-val cg">${fmt(gi.achievable_savings_this_month)}</div><div class="metric-lbl">Achievable Savings</div></div>
+      </div>`;
+    gi.goals.forEach(g => {
+      html += `<div style="padding:12px 0;border-bottom:1px solid var(--border)">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:7px">
+          <div style="font-weight:600">${g.goal_name}</div>
+          <span class="badge ${g.feasible_with_savings ? 'bs' : 'br'}">${g.feasible_with_savings ? '✓ Feasible' : '⚠ Shortfall'}</span>
+        </div>
+        <div style="display:flex;gap:18px;font-size:.75rem;color:var(--text2)">
+          <span>Remaining: <strong>${fmt(g.remaining_amount)}</strong></span>
+          <span>Monthly need: <strong style="color:var(--accent2)">${fmt(g.monthly_contribution_needed)}</strong></span>
+        </div>
+      </div>`;
+    });
+    html += `</div>`;
+  }
+  el.innerHTML = html;
+}
+
+/* ── INSIGHTS ─────────────────────────────────────────────────────────────── */
+async function loadInsights() {
+  const btn = document.getElementById('insightsBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Calling Mistral…';
+  try {
+    const d = await apiFetch(`/insights/${uid()}`);
+    renderInsights(d.data || d);
+    toast('✅ Insight generated from live DB data', 'ok');
+  } catch(e) {
+    toast('❌ Insights: ' + e.message, 'err');
+    document.getElementById('insightsContent').innerHTML = errBox(e);
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '✨ Generate Insight';
+  }
+}
+
+function renderInsights(d) {
+  const el = document.getElementById('insightsContent');
+  if (!d) { el.innerHTML = '<div class="empty"><p>No data</p></div>'; return; }
+  const sd  = d.supporting_data || {};
+  const ctx = d.context_used || {};
+
+  // Source badge
+  const src = d.insight_source || 'unknown';
+  const srcBadge = src === 'ollama'
+    ? `<span class="badge bs" title="Generated by local Mistral via Ollama">🟢 Ollama · mistral:latest</span>`
+    : src === 'api'
+    ? `<span class="badge bs" title="Generated by Mistral cloud API">☁️ Mistral API</span>`
+    : `<span class="badge br" title="Ollama unavailable — using rule-based fallback">🔶 Rule-based fallback</span>`;
+
+  let html = `<div class="card gap">
+    <div class="card-title" style="display:flex;align-items:center;gap:10px">
+      Insight &nbsp;·&nbsp; ${d.month_year || ''} ${srcBadge}
+    </div>
+    <div class="insight-box">${d.insight || 'No insight text returned.'}</div>
+  </div>`;
+
+  html += `<div class="g2 gap">
+    <div class="card"><div class="card-title">Supporting Data</div>
+      <table>
+        <tr><td style="padding:8px;color:var(--text2)">Current Balance</td><td style="padding:8px;font-weight:700">${fmt(sd.current_balance)}</td></tr>
+        <tr><td style="padding:8px;color:var(--text2)">Projected Balance P50</td><td style="padding:8px;font-weight:700;color:var(--accent2)">${fmt(sd.projected_balance_median)}</td></tr>
+        <tr><td style="padding:8px;color:var(--text2)">Saving Potential</td><td style="padding:8px;font-weight:700;color:var(--green)">${fmt(sd.saving_potential)}</td></tr>
+        <tr><td style="padding:8px;color:var(--text2)">Spent This Month</td><td style="padding:8px;font-weight:700">${fmt(ctx.spent_this_month)}</td></tr>
+        <tr><td style="padding:8px;color:var(--text2)">Extra vs Mid-Month</td><td style="padding:8px;font-weight:700;color:${(ctx.extra_spent||0)>1000?'var(--red)':'var(--green)'}">${fmt(ctx.extra_spent)}</td></tr>
+        <tr><td style="padding:8px;color:var(--text2)">Depletion Risk</td><td style="padding:8px">${sd.depletion_risk ? '<span class="badge br">⚠ Risk</span>' : '<span class="badge bs">✓ Safe</span>'}</td></tr>
+      </table>
+    </div>
+    <div class="card"><div class="card-title">Category Signals</div>
+      <div style="margin-bottom:12px"><div style="font-size:.72rem;color:var(--text2);margin-bottom:5px">TOP SPENDING</div>
+        ${(sd.top_spending_categories || []).map(c => `<span class="pill pill-e" style="margin:2px;display:inline-block">${c}</span>`).join('') || '—'}
+      </div>
+      <div style="margin-bottom:12px"><div style="font-size:.72rem;color:var(--text2);margin-bottom:5px">OVER BUDGET</div>
+        ${(sd.over_budget_categories || []).map(c => `<span class="pill pill-r" style="margin:2px;display:inline-block">${c}</span>`).join('') || '<span style="color:var(--green);font-size:.78rem">None over budget ✓</span>'}
+      </div>
+      <div><div style="font-size:.72rem;color:var(--text2);margin-bottom:5px">MAIN CAUSES</div>
+        ${(ctx.main_causes || []).map(c => `<span class="pill" style="margin:2px;display:inline-block;background:rgba(255,165,0,.15);color:#ffa500">${c}</span>`).join('') || '—'}
+      </div>
+    </div>
+  </div>`;
+
+  html += `<div class="card"><div class="card-title">Raw LLM Input Payload (debug)</div>
+    <pre style="background:var(--surface2);border-radius:8px;padding:14px;overflow-x:auto;font-size:.74rem;color:var(--text2);line-height:1.55">${JSON.stringify(ctx, null, 2)}</pre></div>`;
+  el.innerHTML = html;
+}
+
+/* ── TRANSACTIONS ─────────────────────────────────────────────────────────── */
+function setTxnType(type) {
+  selectedTxnType = type;
+  document.getElementById('txnType').value = type;
+  document.getElementById('typeDebit').className  = 'type-btn' + (type === 'DEBIT'  ? ' active-debit'  : '');
+  document.getElementById('typeCredit').className = 'type-btn' + (type === 'CREDIT' ? ' active-credit' : '');
+}
+
+async function populateCategoryDropdown() {
+  try {
+    const d = await apiFetch(`/transactions/${uid()}/categories`);
+    const dbCats = d.categories || [];
+    const extra = ['Food & Dining','Transport','Shopping','Entertainment','Healthcare','Utilities','Rent','Groceries','Travel','Education','Investments','Finance','Salary','Other'];
+    const all = [...new Set([...dbCats, ...extra])].sort();
+    document.getElementById('txnCategory').innerHTML = all.map(c => `<option value="${c}">${c}</option>`).join('');
+  } catch {
+    document.getElementById('txnCategory').innerHTML = ['Food & Dining','Transport','Shopping','Entertainment','Groceries','Other']
+      .map(c => `<option value="${c}">${c}</option>`).join('');
+  }
+}
+
+async function addTransaction() {
+  const amount   = parseFloat(document.getElementById('txnAmount').value);
+  const category = document.getElementById('txnCategory').value;
+  const desc     = document.getElementById('txnDesc').value.trim();
+  const dateVal  = document.getElementById('txnDate').value;
+  const mode     = document.getElementById('txnMode').value;
+  const recurring = document.getElementById('txnRecurring').checked;
+
+  if (!amount || amount <= 0) { toast('❌ Enter a valid amount', 'err'); return; }
+  if (!category)              { toast('❌ Select a category',   'err'); return; }
+
+  const payload = {
+    user_id: uid(),
+    account_id: 1,
+    amount,
+    txn_type: selectedTxnType,
+    category,
+    raw_description: desc || null,
+    payment_mode: mode || null,
+    is_recurring: recurring,
+    txn_timestamp: dateVal ? new Date(dateVal).toISOString() : null,
+  };
+
+  const btn = document.getElementById('addTxnBtn');
+  btn.disabled = true;
+  document.getElementById('addBtnTxt').innerHTML = '<span class="spinner"></span> Saving…';
+
+  try {
+    const res = await fetch(API + '/transactions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || 'Insert failed');
+
+    const icon = selectedTxnType === 'DEBIT' ? '💸' : '💰';
+    document.getElementById('txnResult').innerHTML = `
+      <div style="background:rgba(0,200,150,.1);border:1px solid rgba(0,200,150,.3);border-radius:9px;padding:12px 16px;font-size:.82rem">
+        <div style="color:var(--green);font-weight:700;margin-bottom:5px">${icon} Transaction #${data.txn_id} saved to DB!</div>
+        <div>Category: <strong>${category}</strong> · Amount: <strong>${fmt(amount)}</strong></div>
+        <div style="margin-top:4px;color:var(--text2)">Account balance now: <strong>${fmt(data.account_balance_after)}</strong> · Spent this month: <strong style="color:var(--accent2)">${fmt(data.spent_this_month_so_far)}</strong></div>
+        <div style="margin-top:6px;font-size:.73rem;color:var(--text2)">⚡ Forecast cache invalidated — reload Forecast tab for updated projections</div>
+      </div>`;
+    toast(`✅ ${icon} ${selectedTxnType} ₹${amount} in ${category} saved`);
+    loadRecentTxns();
+    clearTxnForm(false);
+  } catch(e) {
+    toast('❌ ' + e.message, 'err');
+  } finally {
+    btn.disabled = false;
+    document.getElementById('addBtnTxt').textContent = '➕ Add Transaction';
+  }
+}
+
+function clearTxnForm(clearResult) {
+  document.getElementById('txnAmount').value   = '';
+  document.getElementById('txnDesc').value     = '';
+  document.getElementById('txnMode').value     = '';
+  document.getElementById('txnRecurring').checked = false;
+  if (clearResult !== false) document.getElementById('txnResult').innerHTML = '';
+}
+
+async function loadRecentTxns() {
+  try {
+    const d = await apiFetch(`/transactions/${uid()}/recent?limit=25`);
+    const txns = d.transactions || [];
+    const el = document.getElementById('txnFeed');
+    if (!txns.length) { el.innerHTML = '<div class="empty" style="padding:20px"><p>No transactions found</p></div>'; return; }
+    el.innerHTML = txns.map(t => {
+      const ts = new Date(t.txn_timestamp);
+      const dateStr = ts.toLocaleDateString('en-IN', {day:'2-digit', month:'short', year:'numeric'});
+      const timeStr = ts.toLocaleTimeString('en-IN', {hour:'2-digit', minute:'2-digit'});
+      const isD = (t.txn_type || '').toUpperCase() === 'DEBIT';
+      return `<div class="txn-item ${isD ? 'txn-debit' : 'txn-credit'}">
+        <div class="txn-icon">${isD ? '💸' : '💰'}</div>
+        <div class="txn-info">
+          <div class="txn-cat">${t.category}</div>
+          <div class="txn-desc">${t.description || '—'}</div>
+        </div>
+        <div class="txn-right">
+          <div class="txn-amt">${isD ? '−' : '+'} ${fmt(t.amount)}</div>
+          <div class="txn-ts">${dateStr} ${timeStr}</div>
+        </div>
+      </div>`;
+    }).join('');
+  } catch(e) {
+    document.getElementById('txnFeed').innerHTML = errBox(e);
+  }
+}
+
+async function recompute() {
+  const btn = document.getElementById('recomputeBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span>';
+  try {
+    const res = await fetch(`${API}/recompute/${uid()}`, { method: 'POST' });
+    const d   = await res.json();
+    if (!res.ok) throw new Error(d.detail || 'Error');
+    const s = d.summary || {};
+    toast(`✅ Recomputed: ${s.categories_budgeted || 0} categories, ${s.savings_opportunities_found || 0} savings opps`);
+  } catch(e) {
+    toast('❌ ' + e.message, 'err');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '🔄 Recompute All';
+  }
+}
+
+function chartOpts() {
+  return {
+    responsive: true, maintainAspectRatio: true,
+    plugins: { legend: { labels: { color: '#8b90b8' } }, tooltip: { callbacks: { label: c => '₹' + c.raw.toLocaleString('en-IN') } } },
+    scales: {
+      x: { grid: { color: 'rgba(255,255,255,.05)' }, ticks: { color: '#8b90b8' } },
+      y: { grid: { color: 'rgba(255,255,255,.05)' }, ticks: { color: '#8b90b8', callback: v => '₹' + v.toLocaleString('en-IN') } }
+    }
+  };
+}
+
+(async function init() {
+  await checkServer();
+  const now = new Date();
+  const pad = n => String(n).padStart(2, '0');
+  document.getElementById('txnDate').value =
+    `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}`;
+  await populateCategoryDropdown();
+  await loadRecentTxns();
+})();
+</script>
+</body>
+</html>

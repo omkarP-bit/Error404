@@ -1,0 +1,21 @@
+log_id,actor_id,actor_type,action,resource_type,resource_id,old_value,new_value,ip_address,created_at
+1,,system,INSERT,transactions,1,,"{""status"": ""active"", ""category"": ""Food & Dining"", ""updated_by"": ""system""}",192.168.7.236,2025-10-28T01:00:00Z
+2,,system,INSERT,transactions,2,,"{""status"": ""active"", ""category"": ""Food & Dining"", ""updated_by"": ""system""}",192.168.1.142,2026-01-18T07:00:00Z
+3,,system,INSERT,transactions,3,,"{""status"": ""active"", ""category"": ""Food & Dining"", ""updated_by"": ""system""}",192.168.6.64,2025-11-10T05:00:00Z
+4,1,user,UPDATE,transactions,5,"{""status"": ""pending"", ""category"": ""uncategorized""}","{""status"": ""active"", ""category"": ""Food & Dining"", ""updated_by"": ""user""}",192.168.6.70,2025-11-10T13:00:00Z
+5,1,user,UPDATE,transactions,8,"{""status"": ""pending"", ""category"": ""uncategorized""}","{""status"": ""active"", ""category"": ""Food & Dining"", ""updated_by"": ""user""}",192.168.6.31,2026-02-05T18:00:00Z
+6,1,user,UPDATE,category_mappings,1,"{""status"": ""pending"", ""category"": ""uncategorized""}","{""status"": ""active"", ""category"": ""Food & Dining"", ""updated_by"": ""user""}",192.168.1.46,2025-10-19T15:00:00Z
+7,,ml_model,UPDATE,category_mappings,2,"{""status"": ""pending"", ""category"": ""uncategorized""}","{""status"": ""active"", ""category"": ""Food & Dining"", ""updated_by"": ""ml_model""}",192.168.1.245,2025-12-29T20:00:00Z
+8,1,user,INSERT,goals,1,,"{""status"": ""active"", ""category"": ""Food & Dining"", ""updated_by"": ""user""}",192.168.8.222,2025-11-15T10:00:00Z
+9,1,user,UPDATE,goals,3,"{""status"": ""pending"", ""category"": ""uncategorized""}","{""status"": ""active"", ""category"": ""Food & Dining"", ""updated_by"": ""user""}",192.168.6.23,2025-12-15T03:00:00Z
+10,,system,INSERT,alerts,1,,"{""status"": ""active"", ""category"": ""Food & Dining"", ""updated_by"": ""system""}",192.168.1.95,2025-10-06T22:00:00Z
+11,1,user,UPDATE,alerts,4,"{""status"": ""pending"", ""category"": ""uncategorized""}","{""status"": ""active"", ""category"": ""Food & Dining"", ""updated_by"": ""user""}",192.168.10.201,2026-01-05T03:00:00Z
+12,1,user,INSERT,user_feedback,1,,"{""status"": ""active"", ""category"": ""Food & Dining"", ""updated_by"": ""user""}",192.168.10.63,2025-12-09T13:00:00Z
+13,1,user,INSERT,user_feedback,2,,"{""status"": ""active"", ""category"": ""Food & Dining"", ""updated_by"": ""user""}",192.168.10.249,2025-10-30T01:00:00Z
+14,1,user,UPDATE,users,1,"{""status"": ""pending"", ""category"": ""uncategorized""}","{""status"": ""active"", ""category"": ""Food & Dining"", ""updated_by"": ""user""}",192.168.9.195,2025-10-22T06:00:00Z
+15,,system,INSERT,category_mappings,3,,"{""status"": ""active"", ""category"": ""Food & Dining"", ""updated_by"": ""system""}",192.168.1.239,2025-12-25T08:00:00Z
+16,,system,INSERT,transactions,50,,"{""status"": ""active"", ""category"": ""Food & Dining"", ""updated_by"": ""system""}",192.168.4.139,2025-11-13T12:00:00Z
+17,,ml_model,UPDATE,transactions,22,"{""status"": ""pending"", ""category"": ""uncategorized""}","{""status"": ""active"", ""category"": ""Food & Dining"", ""updated_by"": ""ml_model""}",192.168.1.244,2025-11-28T16:00:00Z
+18,,system,UPDATE,goals,2,"{""status"": ""pending"", ""category"": ""uncategorized""}","{""status"": ""active"", ""category"": ""Food & Dining"", ""updated_by"": ""system""}",192.168.7.218,2025-12-02T12:00:00Z
+19,,ml_model,INSERT,alerts,5,,"{""status"": ""active"", ""category"": ""Food & Dining"", ""updated_by"": ""ml_model""}",192.168.4.136,2025-12-09T09:00:00Z
+20,1,user,UPDATE,transactions,15,"{""status"": ""pending"", ""category"": ""uncategorized""}","{""status"": ""active"", ""category"": ""Food & Dining"", ""updated_by"": ""user""}",192.168.8.247,2025-12-26T23:00:00Z

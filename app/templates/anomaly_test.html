@@ -1,0 +1,436 @@
+{% extends "base.html" %}
+{% block title %}Anomaly Detection — FinAI{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div class="page-title">
+    <h1>🚨 Anomaly Detection</h1>
+    <p class="subtitle">IsolationForest on live transactions — real-time scoring against your spend history</p>
+  </div>
+</div>
+
+<!-- ── Stat Cards (hidden until scan runs) ───────────────────────────────── -->
+<div id="statsRow" style="display:none; grid-template-columns:repeat(4,1fr); gap:12px; margin-bottom:16px;">
+  <div id="statTotal"     class="card" style="text-align:center; padding:16px;"></div>
+  <div id="statAnomalies" class="card" style="text-align:center; padding:16px;"></div>
+  <div id="statCritical"  class="card" style="text-align:center; padding:16px;"></div>
+  <div id="statHigh"      class="card" style="text-align:center; padding:16px;"></div>
+</div>
+
+<div class="row-2col">
+  <!-- ── Controls ──────────────────────────────────────────────────────── -->
+  <div class="card">
+    <h3 class="card-title">🔍 Live Transaction Scan</h3>
+    <p class="text-muted" style="margin-bottom:14px;">
+      Selects all debit transactions from the DB for the chosen user, engineers
+      the same 8 behavioural features (rolling z-score, daily frequency, category
+      variance, off-hour flag) and scores them through the IsolationForest.
+      Anomalies are immediately saved as Alert records.
+    </p>
+    <div class="form-grid">
+      <div class="form-group">
+        <label>User to Scan</label>
+        <select id="scanUserId" class="form-control">
+          {% for u in users %}
+            <option value="{{ u.user_id }}">{{ u.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+    <div style="display:flex; gap:8px; flex-wrap:wrap;">
+      <button id="scanBtn" class="btn btn-danger" onclick="runScan()">🚀 Scan Transactions</button>
+      <button class="btn btn-outline" onclick="retrainModel()">🔄 Retrain Model</button>
+    </div>
+
+    <!-- Post-scan summary -->
+    <div id="scanSummary" style="display:none; margin-top:16px;"></div>
+  </div>
+
+  <!-- ── Anomaly Score Timeline ──────────────────────────────────────── -->
+  <div class="card">
+    <h3 class="card-title">📈 Anomaly Score Timeline</h3>
+    <div id="timelineEmpty" class="empty-state">Run a scan to see the timeline.</div>
+    <div id="timelineChart" style="height:300px;"></div>
+  </div>
+</div>
+
+<!-- ── Full Transactions Table ────────────────────────────────────────────── -->
+<div id="txnTableCard" class="card" style="display:none;">
+  <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:10px; margin-bottom:12px;">
+    <h3 class="card-title" style="margin:0;">📋 Transaction Analysis</h3>
+
+    <!-- Filter controls -->
+    <div style="display:flex; flex-wrap:wrap; gap:6px; align-items:center;">
+      <!-- Severity pills -->
+      <button class="btn btn-sm btn-outline filter-sev active" data-sev="all"      onclick="setSevFilter('all',this)">All Severity</button>
+      <button class="btn btn-sm btn-outline filter-sev"        data-sev="low"      onclick="setSevFilter('low',this)">🟢 Low</button>
+      <button class="btn btn-sm btn-outline filter-sev"        data-sev="medium"   onclick="setSevFilter('medium',this)">🟡 Medium</button>
+      <button class="btn btn-sm btn-outline filter-sev"        data-sev="high"     onclick="setSevFilter('high',this)">🟠 High</button>
+      <button class="btn btn-sm btn-outline filter-sev"        data-sev="critical" onclick="setSevFilter('critical',this)">🔴 Critical</button>
+
+      <!-- Category dropdown -->
+      <select id="catFilter" class="form-control" style="width:auto; height:30px; font-size:12px; padding:2px 8px;" onchange="applyCombinedFilter()">
+        <option value="all">All Categories</option>
+      </select>
+
+      <!-- Anomaly-only toggle -->
+      <label style="display:flex; align-items:center; gap:4px; font-size:13px; white-space:nowrap; cursor:pointer;">
+        <input type="checkbox" id="anomalyOnly" onchange="applyCombinedFilter()"> ⚠️ Anomalies only
+      </label>
+    </div>
+  </div>
+
+  <!-- Delete bar (shown only when rows are checked) -->
+  <div id="deleteBar" style="display:none; align-items:center; gap:10px; padding:8px 12px; background:#fef2f2; border:1px solid #fecaca; border-radius:8px; margin-bottom:10px;">
+    <span id="selectedCount" style="font-size:13px; color:#991b1b; font-weight:600;">0 selected</span>
+    <button class="btn btn-danger btn-sm" onclick="dismissSelected()">🗑️ Dismiss Selected Anomalies</button>
+    <button class="btn btn-sm btn-outline" onclick="clearSelection()" style="margin-left:auto;">✕ Clear</button>
+  </div>
+
+  <div id="txnTable" class="table-responsive"></div>
+</div>
+
+<!-- ── Recent DB Alerts ───────────────────────────────────────────────────── -->
+<div class="card">
+  <h3 class="card-title">🔔 Recent Alerts (DB)</h3>
+  {% if alerts and alerts|length > 0 %}
+  <div class="table-responsive">
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Severity</th><th>Type</th><th>Txn ID</th><th>Message</th><th>Status</th><th>Created</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for a in alerts %}
+        <tr>
+          <td>
+            {% if a.severity.value == 'critical' %}<span class="badge badge-red">🔴 Critical</span>
+            {% elif a.severity.value == 'high' %}<span class="badge badge-orange">🟠 High</span>
+            {% elif a.severity.value == 'medium' %}<span class="badge badge-yellow">🟡 Medium</span>
+            {% else %}<span class="badge badge-green">🟢 Low</span>{% endif %}
+          </td>
+          <td>{{ a.alert_type.value }}</td>
+          <td>{{ a.txn_id or '—' }}</td>
+          <td>{{ a.message[:80] if a.message else '—' }}{% if a.message and a.message|length > 80 %}…{% endif %}</td>
+          <td><span class="badge badge-blue">{{ a.status.value }}</span></td>
+          <td>{{ a.created_at.strftime('%d %b, %H:%M') if a.created_at else '—' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+    <div class="empty-state">No alerts in DB yet. Run a scan to populate.</div>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+let _allResults  = [];
+let _sevFilter   = 'all';   // 'all' | 'low' | 'medium' | 'high' | 'critical'
+let _catFilter   = 'all';   // category string or 'all'
+let _anomalyOnly = false;
+let _selected    = new Set(); // Set of txn_ids currently checked
+
+// ── Run Scan ──────────────────────────────────────────────────────────────
+async function runScan() {
+  const userId = document.getElementById('scanUserId').value;
+  const btn    = document.getElementById('scanBtn');
+  btn.disabled = true; btn.textContent = '⏳ Scanning…';
+
+  const data = new FormData();
+  data.append('user_id', userId);
+
+  try {
+    const resp = await fetch('/api/anomaly/scan', { method: 'POST', body: data });
+    const json = await resp.json();
+    if (json.success) {
+      _allResults = json.transactions || [];
+      clearSelection();
+      renderStats(json);
+      renderTimeline(_allResults);
+      populateCatDropdown(_allResults);
+      applyCombinedFilter();
+      const summaryEl = document.getElementById('scanSummary');
+      summaryEl.style.display = 'block';
+      summaryEl.innerHTML = `
+        <div style="padding:10px 14px; background:#f0fdf4; border-radius:8px; border:1px solid #bbf7d0; font-size:13px; color:#065f46;">
+          ✅ Scanned <strong>${json.total_scanned}</strong> transactions —
+          <strong>${json.total_anomalies}</strong> anomalies detected &amp; saved as alerts.
+          <span style="color:#6b7280; margin-left:6px;">(Transactions added via Categorization will appear here after a new scan.)</span>
+        </div>`;
+      showToast(`Scan complete: ${json.total_anomalies} anomalies in ${json.total_scanned} transactions`, 'success');
+    } else {
+      showToast('❌ ' + json.error, 'error');
+    }
+  } catch(e) {
+    showToast('❌ ' + e.message, 'error');
+  } finally {
+    btn.disabled = false; btn.textContent = '🚀 Scan Transactions';
+  }
+}
+
+// ── Stat Cards ────────────────────────────────────────────────────────────
+function renderStats(json) {
+  const txns      = json.transactions || [];
+  const critCount = txns.filter(t => t.severity === 'critical').length;
+  const highCount = txns.filter(t => t.severity === 'high').length;
+  const row = document.getElementById('statsRow');
+  row.style.display = 'grid';
+
+  function card(val, label, color) {
+    return `<div style="font-size:28px; font-weight:700; color:${color};">${val}</div>
+            <div style="font-size:12px; color:#6b7280; margin-top:4px;">${label}</div>`;
+  }
+  document.getElementById('statTotal').innerHTML     = card(json.total_scanned,   'Transactions Scanned', '#374151');
+  document.getElementById('statAnomalies').innerHTML = card(json.total_anomalies, 'Anomalies Found',      '#f59e0b');
+  document.getElementById('statCritical').innerHTML  = card(critCount,            'Critical',             '#ef4444');
+  document.getElementById('statHigh').innerHTML      = card(highCount,            'High Severity',        '#f97316');
+}
+
+// ── Timeline Chart ────────────────────────────────────────────────────────
+function renderTimeline(txns) {
+  document.getElementById('timelineEmpty').style.display = 'none';
+
+  const sevColor = { critical: '#ef4444', high: '#f97316', medium: '#f59e0b', low: '#10b981' };
+  const normal   = txns.filter(t => !t.is_anomaly);
+  const traces   = [];
+
+  if (normal.length) {
+    traces.push({
+      x: normal.map(t => t.txn_timestamp),
+      y: normal.map(t => t.anomaly_score),
+      mode: 'markers', name: 'Normal',
+      marker: { color: '#d1d5db', size: 5, opacity: 0.55 },
+      text: normal.map(t => `${t.category} — ₹${t.amount.toLocaleString('en-IN')}<br>${t.raw_description}`),
+      hovertemplate: '%{text}<br>Score: %{y:.3f}<extra>Normal</extra>',
+    });
+  }
+
+  ['low', 'medium', 'high', 'critical'].forEach(sev => {
+    const grp = txns.filter(t => t.is_anomaly && t.severity === sev);
+    if (!grp.length) return;
+    traces.push({
+      x: grp.map(t => t.txn_timestamp),
+      y: grp.map(t => t.anomaly_score),
+      mode: 'markers', name: sev.charAt(0).toUpperCase() + sev.slice(1),
+      marker: {
+        color: sevColor[sev],
+        size: grp.map(t => Math.max(9, Math.min(26, Math.sqrt(t.amount / 80)))),
+        opacity: 0.88,
+        line: { color: '#fff', width: 1.2 },
+      },
+      text: grp.map(t => `${t.category} — ₹${t.amount.toLocaleString('en-IN')}<br>${t.raw_description}`),
+      hovertemplate: `%{text}<br>Score: %{y:.3f}<extra>${sev}</extra>`,
+    });
+  });
+
+  Plotly.newPlot('timelineChart', traces, {
+    xaxis: { title: 'Date', type: 'date' },
+    yaxis: { title: 'Anomaly Score (lower = more anomalous)' },
+    shapes: [{
+      type: 'line', x0: 0, x1: 1, xref: 'paper',
+      y0: -0.03, y1: -0.03,
+      line: { color: '#f59e0b', dash: 'dot', width: 1.5 },
+    }],
+    annotations: [{
+      x: 1, xref: 'paper', y: -0.03, yref: 'y',
+      text: ' anomaly threshold', showarrow: false,
+      font: { color: '#f59e0b', size: 10 }, xanchor: 'left',
+    }],
+    legend: { orientation: 'h', y: -0.22 },
+    paper_bgcolor: 'transparent', plot_bgcolor: 'transparent',
+    font: { color: '#374151', size: 11 },
+    margin: { t: 20, b: 70, l: 60, r: 20 },
+  }, { responsive: true, displayModeBar: false });
+}
+
+// ── Category Dropdown ─────────────────────────────────────────────────────
+function populateCatDropdown(txns) {
+  const cats   = [...new Set(txns.map(t => t.category).filter(Boolean))].sort();
+  const select = document.getElementById('catFilter');
+  // preserve current selection
+  const prev   = select.value;
+  select.innerHTML = '<option value="all">All Categories</option>';
+  cats.forEach(c => {
+    const opt = document.createElement('option');
+    opt.value = c; opt.textContent = c;
+    if (c === prev) opt.selected = true;
+    select.appendChild(opt);
+  });
+  _catFilter = select.value;
+}
+
+// ── Severity Filter ───────────────────────────────────────────────────────
+function setSevFilter(sev, btn) {
+  _sevFilter = sev;
+  document.querySelectorAll('.filter-sev').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  applyCombinedFilter();
+}
+
+// ── Combined Filter (severity + category + anomaly-only) ─────────────────
+function applyCombinedFilter() {
+  _catFilter   = document.getElementById('catFilter').value;
+  _anomalyOnly = document.getElementById('anomalyOnly').checked;
+
+  let shown = _allResults;
+
+  if (_anomalyOnly) {
+    shown = shown.filter(t => t.is_anomaly);
+  }
+  if (_sevFilter !== 'all') {
+    // When a specific severity is chosen only show anomalies of that severity
+    shown = shown.filter(t => t.is_anomaly && t.severity === _sevFilter);
+  }
+  if (_catFilter !== 'all') {
+    shown = shown.filter(t => t.category === _catFilter);
+  }
+
+  document.getElementById('txnTableCard').style.display = 'block';
+  renderTable(shown);
+}
+
+// ── Transaction Table ─────────────────────────────────────────────────────
+function renderTable(txns) {
+  if (!txns.length) {
+    document.getElementById('txnTable').innerHTML =
+      `<div class="empty-state">No transactions match the current filters.</div>`;
+    return;
+  }
+
+  const sevBg    = { critical: '#fee2e2', high: '#ffedd5', medium: '#fef9c3', low: '' };
+  const sevBadge = { critical: 'badge-red', high: 'badge-orange', medium: 'badge-yellow', low: 'badge-green' };
+
+  let html = `<table class="table">
+    <thead><tr>
+      <th style="width:32px;">
+        <input type="checkbox" id="chkAll" title="Select all anomalies" onchange="toggleSelectAll(this)">
+      </th>
+      <th>Date</th><th>Description</th><th>Category</th>
+      <th style="text-align:right">Amount</th><th>Score</th><th>Status</th>
+    </tr></thead><tbody>`;
+
+  txns.forEach(t => {
+    const bg      = t.is_anomaly ? (sevBg[t.severity] || '') : '';
+    const date    = new Date(t.txn_timestamp).toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'2-digit' });
+    const desc    = (t.raw_description || '—').substring(0, 40);
+    const status  = t.is_anomaly
+      ? `<span class="badge ${sevBadge[t.severity]}">⚠️ ${t.severity}</span>`
+      : `<span class="badge badge-green">✅ Normal</span>`;
+    const checked = _selected.has(t.txn_id) ? 'checked' : '';
+    // Only anomalies get a usable checkbox (normal txns show a disabled one for alignment)
+    const chkbox  = t.is_anomaly
+      ? `<input type="checkbox" class="txn-check" data-txn-id="${t.txn_id}" onchange="onCheckChange(this)" ${checked}>`
+      : `<input type="checkbox" disabled title="Only anomalies can be dismissed">`;
+
+    html += `<tr style="background:${bg}" data-txn-id="${t.txn_id}">
+      <td>${chkbox}</td>
+      <td style="white-space:nowrap">${date}</td>
+      <td title="${t.raw_description || ''}">${desc}</td>
+      <td><span class="badge badge-cat">${t.category || '—'}</span></td>
+      <td style="text-align:right">₹${t.amount.toLocaleString('en-IN')}</td>
+      <td style="font-family:monospace">${t.anomaly_score.toFixed(3)}</td>
+      <td>${status}</td>
+    </tr>`;
+  });
+
+  html += '</tbody></table>';
+  document.getElementById('txnTable').innerHTML = html;
+  updateDeleteBar();
+}
+
+// ── Checkbox Helpers ──────────────────────────────────────────────────────
+function onCheckChange(chk) {
+  const id = parseInt(chk.dataset.txnId);
+  chk.checked ? _selected.add(id) : _selected.delete(id);
+  updateDeleteBar();
+}
+
+function toggleSelectAll(masterChk) {
+  document.querySelectorAll('.txn-check').forEach(chk => {
+    const id = parseInt(chk.dataset.txnId);
+    chk.checked = masterChk.checked;
+    masterChk.checked ? _selected.add(id) : _selected.delete(id);
+  });
+  updateDeleteBar();
+}
+
+function updateDeleteBar() {
+  const bar   = document.getElementById('deleteBar');
+  const count = document.getElementById('selectedCount');
+  if (_selected.size > 0) {
+    bar.style.display  = 'flex';
+    count.textContent  = `${_selected.size} selected`;
+  } else {
+    bar.style.display  = 'none';
+  }
+}
+
+function clearSelection() {
+  _selected.clear();
+  document.querySelectorAll('.txn-check').forEach(chk => chk.checked = false);
+  const master = document.getElementById('chkAll');
+  if (master) master.checked = false;
+  updateDeleteBar();
+}
+
+// ── Dismiss Selected ──────────────────────────────────────────────────────
+async function dismissSelected() {
+  if (!_selected.size) return;
+  const userId = document.getElementById('scanUserId').value;
+  if (!confirm(`Dismiss ${_selected.size} anomaly alert(s)? This removes the alert flag but keeps the transactions.`)) return;
+
+  const data = new FormData();
+  data.append('txn_ids', [..._selected].join(','));
+  data.append('user_id', userId);
+
+  try {
+    const resp = await fetch('/api/anomaly/dismiss', { method: 'POST', body: data });
+    const json = await resp.json();
+    if (json.success) {
+      // Remove dismissed txns from _allResults anomaly flag (keep txn, clear is_anomaly)
+      _selected.forEach(id => {
+        const txn = _allResults.find(t => t.txn_id === id);
+        if (txn) { txn.is_anomaly = false; txn.severity = 'low'; }
+      });
+      showToast(`✅ Dismissed ${json.dismissed} alert(s)`, 'success');
+      clearSelection();
+      applyCombinedFilter();
+      // Re-render stats
+      const anomalies = _allResults.filter(t => t.is_anomaly);
+      renderStats({ total_scanned: _allResults.length, total_anomalies: anomalies.length, transactions: _allResults });
+    } else {
+      showToast('❌ ' + json.error, 'error');
+    }
+  } catch(e) {
+    showToast('❌ ' + e.message, 'error');
+  }
+}
+
+// ── Retrain ───────────────────────────────────────────────────────────────
+async function retrainModel() {
+  if (!confirm('Retrain IsolationForest on the CSV dataset? This recalibrates the baseline.')) return;
+  const btn = event.target;
+  btn.disabled = true; btn.textContent = '⏳ Training…';
+  const resp = await fetch('/api/retrain/anomaly', { method: 'POST' });
+  const json = await resp.json();
+  btn.disabled = false; btn.textContent = '🔄 Retrain Model';
+  json.success
+    ? showToast('Model retrained! Anomaly rate: ' + (json.report?.anomaly_rate ?? ''), 'success')
+    : showToast('Retrain failed: ' + json.error, 'error');
+}
+
+// ── Toast ─────────────────────────────────────────────────────────────────
+function showToast(msg, type = 'info') {
+  const el = document.createElement('div');
+  el.className = `toast toast-${type}`;
+  el.textContent = msg;
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 4500);
+}
+</script>
+{% endblock %}
+

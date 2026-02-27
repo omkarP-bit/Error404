@@ -1,0 +1,5 @@
+account_id,user_id,institution_name,account_type,current_balance,created_at
+1,1,HDFC Bank,savings,196188.22,2025-03-03T12:00:00Z
+2,1,ICICI Bank,credit,0.0,2025-03-13T12:00:00Z
+3,1,Zerodha Demat,current,273609.44,2025-03-23T12:00:00Z
+4,1,Axis Bank,savings,22000.0,2025-04-02T12:00:00Z
