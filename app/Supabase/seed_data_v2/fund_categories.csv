@@ -1,0 +1,9 @@
+fund_category_id,name,description,created_at
+1,Equity - Large Cap,Large cap equity mutual funds with stable returns,2025-01-22T12:00:00Z
+2,Equity - Mid Cap,Mid cap equity funds with higher growth potential,2025-01-22T12:00:00Z
+3,Equity - Small Cap,Small cap funds with high risk and high reward,2025-01-22T12:00:00Z
+4,Debt - Short Term,Short duration debt funds for capital preservation,2025-01-22T12:00:00Z
+5,Debt - Long Term,Long duration government and corporate bonds,2025-01-22T12:00:00Z
+6,Hybrid - Balanced,Balanced mix of equity and debt instruments,2025-01-22T12:00:00Z
+7,Index Fund,Passive funds tracking Nifty 50 / Sensex,2025-01-22T12:00:00Z
+8,ELSS,Tax-saving equity linked savings scheme (80C),2025-01-22T12:00:00Z

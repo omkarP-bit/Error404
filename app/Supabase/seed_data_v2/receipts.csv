@@ -1,0 +1,16 @@
+receipt_id,txn_id,extracted_items,total_amount,amount_matched,ocr_confidence,created_at
+1,128,"[{""name"": ""Metro"", ""qty"": 1, ""price"": 357.5}, {""name"": ""GST 18%"", ""qty"": 1, ""price"": 63.09}]",420.59,false,0.8943,2025-11-21T08:17:00Z
+2,216,"[{""name"": ""Monthly Rent"", ""qty"": 1, ""price"": 18700.0}, {""name"": ""GST 18%"", ""qty"": 1, ""price"": 3300.0}]",22000.0,true,0.7801,2026-02-02T10:44:00Z
+3,236,"[{""name"": ""Clothing"", ""qty"": 1, ""price"": 3201.48}, {""name"": ""GST 18%"", ""qty"": 1, ""price"": 564.97}]",3766.45,true,0.8048,2026-02-23T13:42:00Z
+4,219,"[{""name"": ""Streaming"", ""qty"": 1, ""price"": 551.65}, {""name"": ""GST 18%"", ""qty"": 1, ""price"": 97.35}]",649.0,true,0.9325,2026-02-08T15:00:00Z
+5,34,"[{""name"": ""Mobile Recharge"", ""qty"": 1, ""price"": 509.15}, {""name"": ""GST 18%"", ""qty"": 1, ""price"": 89.85}]",599.0,true,0.7842,2025-09-06T11:42:00Z
+6,179,"[{""name"": ""Monthly Rent"", ""qty"": 1, ""price"": 18700.0}, {""name"": ""GST 18%"", ""qty"": 1, ""price"": 3300.0}]",22000.0,true,0.8069,2026-01-02T10:12:00Z
+7,140,"[{""name"": ""Mutual Fund SIP"", ""qty"": 1, ""price"": 8500.0}, {""name"": ""GST 18%"", ""qty"": 1, ""price"": 1500.0}]",10000.0,true,0.9435,2025-12-05T10:39:00Z
+8,99,"[{""name"": ""Weekend Outing"", ""qty"": 1, ""price"": 1633.92}, {""name"": ""GST 18%"", ""qty"": 1, ""price"": 288.34}]",1922.26,true,0.959,2025-10-26T20:34:00Z
+9,49,"[{""name"": ""Household"", ""qty"": 1, ""price"": 925.17}, {""name"": ""GST 18%"", ""qty"": 1, ""price"": 163.26}]",1088.43,true,0.8439,2025-09-22T19:00:00Z
+10,135,"[{""name"": ""Weekend Outing"", ""qty"": 1, ""price"": 1417.94}, {""name"": ""GST 18%"", ""qty"": 1, ""price"": 250.22}]",1668.16,false,0.8099,2025-11-26T23:16:00Z
+11,16,"[{""name"": ""Cafe"", ""qty"": 1, ""price"": 357.13}, {""name"": ""GST 18%"", ""qty"": 1, ""price"": 63.02}]",420.15,true,0.9625,2025-08-24T14:18:00Z
+12,132,"[{""name"": ""Stock Purchase"", ""qty"": 1, ""price"": 14972.45}, {""name"": ""GST 18%"", ""qty"": 1, ""price"": 2642.2}]",17614.65,true,0.9144,2025-11-16T16:01:00Z
+13,210,"[{""name"": ""Stock Purchase"", ""qty"": 1, ""price"": 21241.64}, {""name"": ""GST 18%"", ""qty"": 1, ""price"": 3748.52}]",24990.16,true,0.9565,2026-01-26T10:42:00Z
+14,165,"[{""name"": ""Petrol"", ""qty"": 1, ""price"": 581.78}, {""name"": ""GST 18%"", ""qty"": 1, ""price"": 102.67}]",684.45,true,0.9065,2025-12-12T21:54:00Z
+15,124,"[{""name"": ""Home Decor"", ""qty"": 1, ""price"": 1206.0}, {""name"": ""GST 18%"", ""qty"": 1, ""price"": 212.82}]",1418.82,true,0.8383,2025-11-05T18:23:00Z

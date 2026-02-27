@@ -1,0 +1,16 @@
+alert_id,user_id,txn_id,alert_type,severity,status,message,created_at,resolved_at
+1,1,40,anomaly,critical,open,Unusual large transaction detected at midnight in Kolkata,2026-01-23T10:00:00Z,
+2,1,52,anomaly,high,acknowledged,High-value shopping transaction outside home city,2026-02-08T14:00:00Z,
+3,1,74,anomaly,high,resolved,Multiple transactions in quick succession detected,2026-01-19T16:00:00Z,2026-01-19T22:00:00Z
+4,1,,budget_breach,high,open,"Shopping budget exceeded by ₹1,200 this month",2026-01-24T22:00:00Z,
+5,1,,budget_breach,medium,open,Finance spend at 91% of monthly budget limit,2026-01-24T01:00:00Z,
+6,1,,budget_breach,medium,acknowledged,Food & Dining spend at 77% of monthly limit,2026-02-21T21:00:00Z,
+7,1,82,large_transaction,high,resolved,"Transaction of ₹18,500 on Amazon flagged as large",2026-01-01T18:00:00Z,2026-01-02T06:00:00Z
+8,1,97,large_transaction,medium,open,"Travel booking ₹7,800 detected — verify if intended",2026-02-02T07:00:00Z,
+9,1,,unusual_pattern,medium,open,Weekend spending 3x higher than weekday average,2026-02-09T09:00:00Z,
+10,1,,unusual_pattern,low,dismissed,Category mix shift detected in last 30 days,2025-12-29T18:00:00Z,
+11,1,,goal_at_risk,medium,open,Home Down Payment goal progress is below schedule,2026-01-12T13:00:00Z,
+12,1,,goal_at_risk,low,open,"Goa Vacation goal needs ₹2,400/week to stay on track",2026-02-18T05:00:00Z,
+13,1,152,duplicate_charge,high,resolved,Possible duplicate charge detected from Swiggy,2026-01-08T20:00:00Z,2026-01-08T22:00:00Z
+14,1,,anomaly,medium,open,Groceries spend 2.4x higher than rolling average,2026-02-23T12:00:00Z,
+15,1,,budget_breach,low,dismissed,"Investment SIP completed — monthly surplus below ₹5,000",2026-02-10T11:00:00Z,

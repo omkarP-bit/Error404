@@ -1,0 +1,6 @@
+goal_id,user_id,goal_name,target_amount,current_amount,deadline,status,feasibility_score,created_at,updated_at
+1,1,Emergency Fund,360000.0,145000.0,2026-12-31,active,0.82,2025-08-30T12:00:00Z,2026-02-21T12:00:00Z
+2,1,Retirement Corpus,10000000.0,285000.0,2050-01-01,active,0.74,2025-02-26T12:00:00Z,2026-02-16T12:00:00Z
+3,1,New Laptop,120000.0,48000.0,2026-08-31,active,0.88,2025-11-28T12:00:00Z,2026-02-23T12:00:00Z
+4,1,Goa Vacation,80000.0,32000.0,2026-06-15,active,0.79,2025-12-28T12:00:00Z,2026-02-24T12:00:00Z
+5,1,Home Down Payment,2000000.0,125000.0,2030-03-31,active,0.61,2025-06-01T12:00:00Z,2026-02-19T12:00:00Z
