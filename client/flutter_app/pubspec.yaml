@@ -1,0 +1,47 @@
+name: personal_finance_app
+description: AI-powered personal finance management platform
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  
+  # State Management
+  provider: ^6.1.1
+  
+  # HTTP & API
+  http: ^1.1.2
+  dio: ^5.4.0
+  
+  # Local Storage
+  shared_preferences: ^2.2.2
+  
+  # UI Components
+  flutter_svg: ^2.0.9
+  google_fonts: ^6.1.0
+  
+  # Charts
+  fl_chart: ^0.66.0
+  
+  # Camera & AR (for price scan feature)
+  camera: ^0.10.5
+  google_mlkit_text_recognition: ^0.11.0
+  sensors_plus: ^4.0.2
+  permission_handler: ^11.1.0
+  
+  # Authentication
+  supabase_flutter: ^2.0.0
+  
+  # Utils
+  intl: ^0.18.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.1
+
+flutter:
+  uses-material-design: true

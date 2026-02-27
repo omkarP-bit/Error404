@@ -1,0 +1,33 @@
+═══════════════════════════════════════════════════════════════
+  DEVICE NOT DETECTED - Quick Fix
+═══════════════════════════════════════════════════════════════
+
+Your phone needs ADB installed. Run these commands:
+
+1. Install ADB:
+   sudo apt install adb
+
+2. Start ADB:
+   adb start-server
+
+3. Check device:
+   adb devices
+
+4. You should see your device listed
+
+5. Then run:
+   cd client/flutter_app
+   flutter devices
+
+6. Finally run the app:
+   flutter run
+
+═══════════════════════════════════════════════════════════════
+
+If device still not showing:
+- Unplug and replug USB cable
+- On phone: Accept "Allow USB Debugging" popup
+- Try: adb kill-server && adb start-server
+- Check cable supports data transfer (not just charging)
+
+═══════════════════════════════════════════════════════════════

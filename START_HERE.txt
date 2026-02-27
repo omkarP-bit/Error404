@@ -1,0 +1,136 @@
+═══════════════════════════════════════════════════════════════
+  READY TO TEST AR ON YOUR MOBILE!
+═══════════════════════════════════════════════════════════════
+
+✅ What's Ready:
+- AR Test Screen created
+- Dashboard updated with "Test AR Camera" button
+- Simple camera test to verify AR works
+
+═══════════════════════════════════════════════════════════════
+  QUICK START (3 Steps)
+═══════════════════════════════════════════════════════════════
+
+1️⃣ CONNECT PHONE
+   Android: Enable USB Debugging in Developer Options
+   iOS: Trust computer when prompted
+
+2️⃣ RUN THESE COMMANDS:
+   cd client/flutter_app
+   flutter pub get
+   flutter devices    # Should show your phone
+   flutter run        # Builds and installs app
+
+3️⃣ TEST IN APP:
+   - Login
+   - Dashboard → Tap green "Test AR Camera" card
+   - Camera opens? ✅ AR WORKS!
+
+═══════════════════════════════════════════════════════════════
+  FILES CREATED FOR TESTING
+═══════════════════════════════════════════════════════════════
+
+✓ lib/features/ar/ar_test_screen.dart
+  → Simple camera test screen
+
+✓ Dashboard updated
+  → Green "Test AR Camera" card added
+
+✓ CONNECT_MOBILE.txt
+  → Complete connection guide
+
+✓ MOBILE_TEST.md
+  → Testing instructions
+
+═══════════════════════════════════════════════════════════════
+  WHAT THE TEST DOES
+═══════════════════════════════════════════════════════════════
+
+The test screen:
+1. Opens camera
+2. Shows camera feed
+3. Displays "✅ AR READY!" if working
+4. Shows error if camera fails
+
+This verifies:
+✓ Camera access works
+✓ Permissions correct
+✓ AR capability ready
+
+═══════════════════════════════════════════════════════════════
+  EXPECTED RESULT
+═══════════════════════════════════════════════════════════════
+
+SUCCESS:
+📱 Camera feed visible
+✅ Green "AR READY!" message in center
+✅ Status: "Camera working!"
+
+FAILURE:
+❌ Black screen → Grant camera permission
+❌ Error message → Check device compatibility
+
+═══════════════════════════════════════════════════════════════
+  TROUBLESHOOTING
+═══════════════════════════════════════════════════════════════
+
+Device not showing?
+→ flutter devices
+→ Enable USB debugging (Android)
+→ Trust computer (iOS)
+
+Build errors?
+→ flutter clean
+→ flutter pub get
+→ flutter run
+
+Camera permission denied?
+→ Phone Settings → Apps → Permissions → Camera
+
+═══════════════════════════════════════════════════════════════
+  AFTER TEST PASSES
+═══════════════════════════════════════════════════════════════
+
+Once camera test works, you can enable full AR features:
+
+1. Open: lib/features/dashboard/dashboard_screen.dart
+
+2. Change line in _buildARFeatureCard():
+   FROM: MaterialPageRoute(builder: (_) => const ARTestScreen())
+   TO:   MaterialPageRoute(builder: (_) => const ARHubScreen())
+
+3. Restart app
+
+4. Now you can access:
+   - AR Budget Visualizer
+   - AR Spending Tracker  
+   - AR Receipt Scanner
+
+═══════════════════════════════════════════════════════════════
+  COMMANDS CHEAT SHEET
+═══════════════════════════════════════════════════════════════
+
+# Check connection
+flutter devices
+
+# Install & run
+cd client/flutter_app
+flutter pub get
+flutter run
+
+# View logs
+flutter logs
+
+# Clean rebuild
+flutter clean && flutter pub get && flutter run
+
+═══════════════════════════════════════════════════════════════
+
+🎯 YOUR NEXT COMMAND:
+
+cd /home/omkar/Documents/Error404/personal-finance-platform/client/flutter_app
+flutter devices
+
+(Make sure your phone shows up, then run: flutter run)
+
+═══════════════════════════════════════════════════════════════

@@ -1,0 +1,148 @@
+╔══════════════════════════════════════════════════════════════╗
+║         AR TEST ON MOBILE - Complete Guide                   ║
+╚══════════════════════════════════════════════════════════════╝
+
+📱 STEP 1: CONNECT YOUR PHONE
+═══════════════════════════════════════════════════════════════
+
+For Android:
+───────────
+1. Connect phone via USB cable
+2. On phone: Settings → About Phone → Tap "Build Number" 7 times
+3. Go back → Developer Options → Enable "USB Debugging"
+4. Accept "Allow USB Debugging" popup on phone
+5. Run: flutter devices
+
+For iOS:
+────────
+1. Connect iPhone via USB cable
+2. Trust computer on iPhone when prompted
+3. Run: flutter devices
+
+
+📋 STEP 2: VERIFY CONNECTION
+═══════════════════════════════════════════════════════════════
+
+Run this command:
+    cd client/flutter_app
+    flutter devices
+
+You should see your device listed (not just "Linux desktop")
+
+
+🚀 STEP 3: RUN THE APP
+═══════════════════════════════════════════════════════════════
+
+Run these commands:
+    cd client/flutter_app
+    flutter pub get
+    flutter run
+
+The app will:
+- Build (takes 2-5 minutes first time)
+- Install on your phone
+- Launch automatically
+
+
+📱 STEP 4: TEST AR CAMERA
+═══════════════════════════════════════════════════════════════
+
+In the app on your phone:
+1. Login with your credentials
+2. Navigate to Dashboard
+3. Look for GREEN card that says "Test AR Camera"
+4. Tap it
+5. Camera should open immediately
+
+
+✅ EXPECTED RESULT
+═══════════════════════════════════════════════════════════════
+
+You should see:
+✓ Camera feed showing what phone camera sees
+✓ Green box in center with "✅ AR READY!"
+✓ Status at top: "✅ Camera working!"
+
+If you see this → AR is working! 🎉
+
+
+❌ TROUBLESHOOTING
+═══════════════════════════════════════════════════════════════
+
+Problem: Device not detected
+Solution:
+    # Android
+    - Enable USB debugging
+    - Try different USB cable
+    - Install ADB: sudo apt install adb
+    - Run: adb devices
+    
+    # iOS
+    - Trust computer on device
+    - Install libimobiledevice: brew install libimobiledevice
+
+Problem: Camera permission denied
+Solution:
+    - Phone Settings → Apps → Your App → Permissions → Camera → Allow
+
+Problem: Black screen in AR test
+Solution:
+    - Grant camera permission
+    - Restart app
+
+Problem: Build errors
+Solution:
+    flutter clean
+    flutter pub get
+    flutter run
+
+
+🔧 QUICK COMMANDS
+═══════════════════════════════════════════════════════════════
+
+# Check device connected
+flutter devices
+
+# Install dependencies
+cd client/flutter_app && flutter pub get
+
+# Run on device
+flutter run
+
+# View logs
+flutter logs
+
+# Rebuild from scratch
+flutter clean && flutter pub get && flutter run
+
+
+📝 WHAT YOU'RE TESTING
+═══════════════════════════════════════════════════════════════
+
+This simple test verifies:
+✓ Flutter app runs on your phone
+✓ Camera access works
+✓ Permissions configured correctly
+✓ AR capability ready
+
+Once camera opens → All AR features will work!
+
+
+🎯 NEXT STEPS AFTER TEST PASSES
+═══════════════════════════════════════════════════════════════
+
+After camera test works, you can access full AR features:
+1. Go back to Dashboard
+2. Change the card to open ARHubScreen (in code)
+3. Test all AR features:
+   - AR Budget Visualizer
+   - AR Spending Tracker
+   - AR Receipt Scanner
+
+
+═══════════════════════════════════════════════════════════════
+Need help? Check:
+- MOBILE_TEST.md
+- AR_TESTING_GUIDE.md
+- AR_QUICKSTART.md
+═══════════════════════════════════════════════════════════════

@@ -1,0 +1,52 @@
+# Environment
+.env
+.env.local
+
+# Node
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+
+# ML Models
+ml/saved_models/*.pkl
+ml/saved_models/*.h5
+ml/experiments/
+
+# Flutter
+client/flutter_app/.dart_tool/
+client/flutter_app/.flutter-plugins
+client/flutter_app/.flutter-plugins-dependencies
+client/flutter_app/.packages
+client/flutter_app/build/
+client/flutter_app/ios/
+client/flutter_app/android/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Database
+*.db
+*.sqlite
+
+# Markdown files
+*.md
