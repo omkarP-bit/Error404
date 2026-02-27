@@ -1,0 +1,54 @@
+# Git
+.git
+.gitignore
+
+# Documentation
+*.md
+docs/
+AR_*.txt
+AR_*.md
+COMPLETE_SYSTEM.md
+FINAL_SOLUTION.md
+START*.md
+START*.txt
+
+# Development files
+.env.local
+.env.development
+*.log
+logs/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Build artifacts
+dist/
+build/
+target/
+
+# Dependencies (will be installed in container)
+node_modules/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Flutter
+client/flutter_app/build/
+client/flutter_app/.dart_tool/
+client/flutter_app/.packages
+
+# Scripts (not needed in container)
+scripts/
+setup*.sh
+run.sh
+
+# Infrastructure
+infrastructure/
+terraform/

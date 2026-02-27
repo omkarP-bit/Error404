@@ -7,15 +7,14 @@ services:
       dockerfile: Dockerfile
       cache_from:
         - node:18-alpine
-      target: runner
+      args:
+        - BUILDKIT_INLINE_CACHE=1
     ports:
       - "3000:3000"
     environment:
-      - NODE_ENV=development
+      - NODE_ENV=production
       - PORT=3000
       - ML_SERVICE_URL=http://ml-service:8000
-      - AR_ENABLED=true
-      - CAMERA_SERVICE_URL=http://camera-service:8080
     env_file:
       - .env
     depends_on:
@@ -23,19 +22,26 @@ services:
         condition: service_healthy
       ml-service:
         condition: service_started
-      camera-service:
-        condition: service_started
     restart: unless-stopped
     deploy:
       resources:
         limits:
-          memory: 512M
-          cpus: '0.5'
+          memory: 256M
+          cpus: '0.3'
+        reservations:
+          memory: 128M
+          cpus: '0.1'
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/health"]
       interval: 30s
-      timeout: 10s
-      retries: 3
+      timeout: 5s
+      retries: 2
+      start_period: 10s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   ml-service:
     build: 
@@ -43,14 +49,14 @@ services:
       dockerfile: Dockerfile
       cache_from:
         - python:3.11-slim
-      target: runner
+      args:
+        - BUILDKIT_INLINE_CACHE=1
     ports:
       - "8000:8000"
     environment:
       - PYTHONUNBUFFERED=1
       - PYTHONDONTWRITEBYTECODE=1
       - PYTHONPATH=/app
-      - AR_ML_ENABLED=true
     depends_on:
       postgres:
         condition: service_healthy
@@ -58,39 +64,22 @@ services:
     deploy:
       resources:
         limits:
-          memory: 1G
-          cpus: '1.0'
-    healthcheck:
-      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:8000/health')"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-
-  camera-service:
-    build:
-      context: ./ml
-      dockerfile: Dockerfile.camera
-      cache_from:
-        - python:3.11-slim
-      target: runner
-    ports:
-      - "8080:8080"
-    environment:
-      - PYTHONUNBUFFERED=1
-      - SERVICE_TYPE=camera
-    volumes:
-      - /tmp:/tmp
-    restart: unless-stopped
-    deploy:
-      resources:
-        limits:
+          memory: 512M
+          cpus: '0.5'
+        reservations:
           memory: 256M
-          cpus: '0.3'
+          cpus: '0.2'
     healthcheck:
-      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:8080/health')"]
+      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:8000/health', timeout=5)"]
       interval: 30s
       timeout: 10s
-      retries: 3
+      retries: 2
+      start_period: 30s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   postgres:
     image: postgres:15-alpine
@@ -108,29 +97,49 @@ services:
     deploy:
       resources:
         limits:
-          memory: 512M
-          cpus: '0.5'
+          memory: 256M
+          cpus: '0.3'
+        reservations:
+          memory: 128M
+          cpus: '0.1'
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 10s
-      timeout: 5s
-      retries: 5
-    # Optimized PostgreSQL configuration
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "2"
+    # Production-optimized PostgreSQL configuration
     command: >
       postgres
-      -c shared_buffers=128MB
-      -c max_connections=50
-      -c effective_cache_size=256MB
-      -c maintenance_work_mem=64MB
+      -c shared_buffers=64MB
+      -c max_connections=30
+      -c effective_cache_size=128MB
+      -c maintenance_work_mem=32MB
       -c checkpoint_completion_target=0.9
-      -c wal_buffers=16MB
-      -c default_statistics_target=100
+      -c wal_buffers=8MB
+      -c default_statistics_target=50
       -c random_page_cost=1.1
-      -c effective_io_concurrency=200
-      -c work_mem=4MB
-      -c min_wal_size=1GB
-      -c max_wal_size=4GB
+      -c effective_io_concurrency=100
+      -c work_mem=2MB
+      -c min_wal_size=512MB
+      -c max_wal_size=2GB
+      -c log_min_duration_statement=1000
+      -c log_checkpoints=on
+      -c log_connections=on
+      -c log_disconnections=on
 
 volumes:
   postgres_data:
     driver: local
+
+networks:
+  default:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16

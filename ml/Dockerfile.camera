@@ -1,0 +1,45 @@
+# Multi-stage build for optimized camera service
+FROM python:3.11-slim as deps
+WORKDIR /app
+
+# Install build dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc g++ \
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean
+
+# Install Python dependencies
+COPY requirements.camera.txt .
+RUN pip install --no-cache-dir --user -r requirements.camera.txt \
+    && find /root/.local -name '*.pyc' -delete \
+    && find /root/.local -name '__pycache__' -delete
+
+FROM python:3.11-slim as runner
+WORKDIR /app
+
+# Install runtime dependencies only
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libgl1-mesa-glx \
+    libglib2.0-0 \
+    libsm6 \
+    libxext6 \
+    libxrender-dev \
+    libgomp1 \
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean
+
+# Copy installed packages from deps stage
+COPY --from=deps /root/.local /root/.local
+
+# Copy camera service code
+COPY src/camera/ ./src/camera/
+
+# Set environment
+ENV PATH=/root/.local/bin:$PATH
+ENV PYTHONPATH=/app
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONDONTWRITEBYTECODE=1
+
+EXPOSE 8080
+
+CMD ["python", "src/camera/main.py"]
