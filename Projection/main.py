@@ -1,4 +1,4 @@
-"""
+﻿"""
 ai_projection_engine/server/main.py
 ====================================
 FastAPI application entry point for the Adaptive Financial Projection Engine.
@@ -18,7 +18,6 @@ Runs on port 8001 by default (configurable via PORT env var).
 from __future__ import annotations
 
 import logging
-import sys
 from contextlib import asynccontextmanager
 from typing import Any, Dict
 
@@ -29,26 +28,22 @@ from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
-# ── Make sure engine root (llm/, jobs/) is importable ────────────────────────
 from pathlib import Path
-_ENGINE_ROOT = str(Path(__file__).resolve().parent.parent)
-if _ENGINE_ROOT not in sys.path:
-    sys.path.insert(0, _ENGINE_ROOT)
 
 _TEMPLATES_DIR = Path(__file__).resolve().parent / "templates"
 _templates = Jinja2Templates(directory=str(_TEMPLATES_DIR))
 
-from server.core.config import settings
-from server.core.database import get_db, init_projection_tables
-from server.routes.forecast_routes import router as forecast_router
-from server.routes.insights_routes import router as insights_router
-from server.routes.savings_routes import router as savings_router
-from server.routes.transaction_routes import router as transaction_router
-from server.routes.shock_routes import router as shock_router
-from server.services.adaptive_budgeting_service import get_adaptive_budgets
-from server.services.confidence_band_service import invalidate_snapshot
-from server.services.probabilistic_forecast_service import run_probabilistic_forecast
-from server.services.savings_opportunity_service import get_savings_opportunities
+from config import settings
+from database import get_db, init_projection_tables
+from forecast_routes import router as forecast_router
+from insights_routes import router as insights_router
+from savings_routes import router as savings_router
+from transaction_routes import router as transaction_router
+from shock_routes import router as shock_router
+from adaptive_budgeting_service import get_adaptive_budgets
+from confidence_band_service import invalidate_snapshot
+from probabilistic_forecast_service import run_probabilistic_forecast
+from savings_opportunity_service import get_savings_opportunities
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s  %(levelname)s  %(message)s")
 logger = logging.getLogger(__name__)
@@ -181,7 +176,7 @@ async def generic_exception_handler(request, exc):  # noqa: ANN001
 
 if __name__ == "__main__":
     uvicorn.run(
-        "server.main:app",
+        "main:app",
         host=settings.HOST,
         port=settings.PORT,
         reload=settings.DEBUG,

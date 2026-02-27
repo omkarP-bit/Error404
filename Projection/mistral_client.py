@@ -1,4 +1,4 @@
-"""
+﻿"""
 ai_projection_engine/llm/mistral_client.py
 ==========================================
 Unified Mistral LLM client with three operating modes:
@@ -40,7 +40,7 @@ class MistralClient:
     """
 
     def __init__(self) -> None:
-        from server.core.config import settings
+        from config import settings
 
         self.use_local: bool = settings.MISTRAL_USE_LOCAL
         self.api_key: str = settings.MISTRAL_API_KEY
@@ -129,7 +129,7 @@ class MistralClient:
         """
         # Shock-engine context has 'shock_capacity' key
         if "shock_capacity" in context:
-            from server.shock_engine.llm_prompts import build_shock_fallback
+            from llm_prompts import build_shock_fallback
             return build_shock_fallback(context)
 
         extra       = float(context.get("extra_spent", 0.0) or 0.0)

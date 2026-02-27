@@ -1,0 +1,600 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Financial Shock Absorption Engine</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+  :root{
+    --bg:#0f1117;--surface:#1a1d27;--surface2:#22263a;--surface3:#2a2f45;
+    --accent:#6c63ff;--accent2:#00d4aa;--green:#00d4aa;--red:#ff5c7a;
+    --orange:#ff9f43;--blue:#48dbfb;--yellow:#ffd32a;
+    --text:#e8eaff;--text2:#8b90b8;--radius:14px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;min-height:100vh}
+
+  /* ── Layout ── */
+  .header{background:linear-gradient(135deg,#1a1d27,#22263a);border-bottom:1px solid rgba(108,99,255,.2);padding:18px 28px;display:flex;align-items:center;gap:16px}
+  .header h1{font-size:1.35rem;font-weight:700;background:linear-gradient(135deg,#6c63ff,#00d4aa);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+  .header p{font-size:.78rem;color:var(--text2);margin-top:3px}
+  .badge-engine{background:rgba(108,99,255,.15);border:1px solid rgba(108,99,255,.35);color:#a09cf5;font-size:.7rem;padding:3px 10px;border-radius:20px;margin-left:auto}
+
+  .container{max-width:1400px;margin:0 auto;padding:24px 20px}
+
+  /* ── User selector ── */
+  .user-bar{background:var(--surface);border:1px solid rgba(108,99,255,.2);border-radius:var(--radius);padding:14px 20px;display:flex;align-items:center;gap:14px;margin-bottom:22px}
+  .user-bar label{font-size:.82rem;color:var(--text2)}
+  .user-bar input{background:var(--surface2);border:1px solid rgba(108,99,255,.25);color:var(--text);border-radius:8px;padding:7px 12px;width:80px;font-size:.9rem}
+  .btn{background:linear-gradient(135deg,#6c63ff,#4a44cc);color:#fff;border:none;border-radius:8px;padding:9px 20px;font-size:.85rem;font-weight:600;cursor:pointer;transition:.2s}
+  .btn:hover{opacity:.88;transform:translateY(-1px)}
+  .btn:disabled{opacity:.45;cursor:not-allowed;transform:none}
+  .btn-teal{background:linear-gradient(135deg,#00d4aa,#00a887)}
+  .btn-orange{background:linear-gradient(135deg,#ff9f43,#e08b2e)}
+  .btn-sm{padding:6px 14px;font-size:.78rem}
+
+  /* ── Tabs ── */
+  .tabs{display:flex;gap:4px;background:var(--surface);border-radius:var(--radius);padding:5px;margin-bottom:22px;overflow-x:auto}
+  .tab{padding:9px 18px;border-radius:10px;cursor:pointer;font-size:.84rem;font-weight:500;color:var(--text2);transition:.2s;white-space:nowrap}
+  .tab.active{background:var(--surface3);color:var(--text);box-shadow:0 2px 8px rgba(0,0,0,.3)}
+  .tab:hover:not(.active){background:rgba(255,255,255,.04)}
+
+  /* ── Cards ── */
+  .card{background:var(--surface);border:1px solid rgba(255,255,255,.07);border-radius:var(--radius);padding:22px}
+  .card-title{font-size:.78rem;font-weight:600;letter-spacing:.06em;color:var(--text2);text-transform:uppercase;margin-bottom:14px}
+  .gap{margin-bottom:18px}
+  .g2{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px}
+  .g3{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px}
+  .g4{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px}
+
+  /* ── Metrics ── */
+  .metric{text-align:center;padding:20px}
+  .metric-val{font-size:1.9rem;font-weight:800;line-height:1.1}
+  .metric-lbl{font-size:.72rem;color:var(--text2);margin-top:6px;text-transform:uppercase;letter-spacing:.05em}
+  .cp{color:var(--accent)}.cg{color:var(--green)}.cr{color:var(--red)}.co{color:var(--orange)}.cb{color:var(--blue)}
+
+  /* ── Resilience gauge ── */
+  .gauge-wrap{position:relative;width:200px;height:120px;margin:0 auto 10px}
+  .gauge-label{text-align:center;font-size:1.1rem;font-weight:700;letter-spacing:.04em}
+  .gauge-sub{text-align:center;font-size:.72rem;color:var(--text2);margin-top:3px}
+
+  /* ── Progress bars ── */
+  .pb-wrap{margin-bottom:10px}
+  .pb-row{display:flex;justify-content:space-between;font-size:.78rem;margin-bottom:5px}
+  .pb{height:8px;background:var(--surface2);border-radius:4px;overflow:hidden}
+  .pf{height:100%;border-radius:4px;transition:width .6s ease}
+
+  /* ── Shock threshold visual ── */
+  .threshold-bar{position:relative;height:36px;background:linear-gradient(90deg,#00d4aa22,#ff9f4322,#ff5c7a22);border-radius:10px;overflow:visible;margin:20px 0}
+  .th-marker{position:absolute;top:-8px;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;pointer-events:none}
+  .th-line{width:2px;height:52px;border-radius:2px}
+  .th-lbl{font-size:.65rem;font-weight:700;padding:2px 6px;border-radius:4px;color:#fff;margin-bottom:3px;white-space:nowrap}
+
+  /* ── Pills ── */
+  .pill{font-size:.68rem;font-weight:600;padding:3px 9px;border-radius:12px;display:inline-block}
+  .pill-g{background:rgba(0,212,170,.15);color:var(--green)}
+  .pill-r{background:rgba(255,92,122,.15);color:var(--red)}
+  .pill-o{background:rgba(255,159,67,.15);color:var(--orange)}
+  .pill-b{background:rgba(72,219,251,.15);color:var(--blue)}
+  .pill-p{background:rgba(108,99,255,.15);color:var(--accent)}
+
+  /* ── Shock amount tester ── */
+  .shock-tester{background:var(--surface2);border-radius:12px;padding:18px;margin-top:14px}
+  .shock-slider{width:100%;-webkit-appearance:none;height:6px;border-radius:3px;background:var(--surface3);outline:none;margin:12px 0}
+  .shock-slider::-webkit-slider-thumb{-webkit-appearance:none;width:20px;height:20px;border-radius:50%;background:var(--accent);cursor:pointer;box-shadow:0 0 8px rgba(108,99,255,.5)}
+
+  /* ── Opportunity cards ── */
+  .opp-card{background:var(--surface2);border-radius:12px;padding:16px;border-left:3px solid var(--accent)}
+  .opp-card.high{border-left-color:var(--green)}
+  .opp-card.medium{border-left-color:var(--orange)}
+  .opp-card.low{border-left-color:var(--text2)}
+  .opp-save{font-size:1.5rem;font-weight:800;color:var(--green)}
+
+  /* ── Goal cards ── */
+  .goal-card{background:var(--surface2);border-radius:12px;padding:16px;position:relative;overflow:hidden}
+  .goal-delay{position:absolute;top:12px;right:12px;font-size:.7rem;font-weight:700}
+  .goal-progress{height:6px;background:var(--surface3);border-radius:3px;margin:10px 0 6px}
+  .goal-pf{height:100%;border-radius:3px;background:linear-gradient(90deg,var(--accent),var(--accent2))}
+
+  /* ── Insight box ── */
+  .insight-box{background:linear-gradient(135deg,rgba(108,99,255,.1),rgba(0,212,170,.07));border:1px solid rgba(108,99,255,.3);border-radius:var(--radius);padding:26px 28px;font-size:1.02rem;line-height:1.8;position:relative}
+  .insight-box::before{content:'"';position:absolute;top:8px;left:14px;font-size:3.5rem;color:var(--accent);opacity:.2;font-family:Georgia,serif;line-height:1}
+
+  /* ── Toast ── */
+  #toast{position:fixed;bottom:24px;right:24px;background:#22263a;border:1px solid rgba(108,99,255,.3);border-radius:10px;padding:12px 20px;font-size:.85rem;transform:translateY(80px);opacity:0;transition:.35s;z-index:999;max-width:340px}
+  #toast.show{transform:translateY(0);opacity:1}
+
+  /* ── Tab content ── */
+  .tab-content{display:none}
+  .tab-content.active{display:block}
+
+  /* ── Empty / error ── */
+  .empty{text-align:center;padding:60px 20px;color:var(--text2)}
+  .empty p{font-size:.9rem}
+  .err-box{background:rgba(255,92,122,.1);border:1px solid rgba(255,92,122,.3);border-radius:10px;padding:16px;color:var(--red);font-size:.85rem;margin-top:12px}
+
+  /* ── Spinner ── */
+  .spinner{display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite;vertical-align:middle;margin-right:6px}
+  @keyframes spin{to{transform:rotate(360deg)}}
+
+  /* ── Scenario selector ── */
+  .scenario-btns{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px}
+  .scenario-btn{background:var(--surface2);border:1px solid rgba(108,99,255,.3);color:var(--text2);border-radius:8px;padding:7px 14px;font-size:.8rem;cursor:pointer;transition:.2s}
+  .scenario-btn:hover,.scenario-btn.active{background:rgba(108,99,255,.2);color:var(--text);border-color:var(--accent)}
+
+  table{width:100%;border-collapse:collapse;font-size:.82rem}
+  th{padding:10px 12px;text-align:left;color:var(--text2);border-bottom:1px solid rgba(255,255,255,.07);font-weight:600;font-size:.72rem;text-transform:uppercase;letter-spacing:.04em}
+  td{padding:10px 12px;border-bottom:1px solid rgba(255,255,255,.04)}
+  tr:last-child td{border-bottom:none}
+
+  @media(max-width:600px){
+    .g2,.g3,.g4{grid-template-columns:1fr}
+    .metric-val{font-size:1.5rem}
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div>
+    <h1>⚡ Financial Shock Absorption Engine</h1>
+    <p>Monte Carlo simulation · EWMA projection · Mistral AI · Live DB data</p>
+  </div>
+  <span class="badge-engine">FSAE v1.0 · Port 8002</span>
+</div>
+
+<div class="container">
+
+  <!-- User selector -->
+  <div class="user-bar">
+    <label>User ID</label>
+    <input type="number" id="userId" value="1" min="1"/>
+    <button class="btn btn-sm" onclick="loadAll()">⚡ Load</button>
+    <span id="userName" style="font-size:.85rem;color:var(--text2);margin-left:8px"></span>
+    <span id="dbBadge" style="margin-left:auto;font-size:.72rem;color:var(--text2)">🔴 Not loaded</span>
+  </div>
+
+  <!-- Tabs -->
+  <div class="tabs">
+    <div class="tab active" onclick="switchTab('shock',this)">⚡ Shock Capacity</div>
+    <div class="tab" onclick="switchTab('goals',this)">🎯 Goal Impact</div>
+    <div class="tab" onclick="switchTab('savings',this)">✂️ Savings Engine</div>
+    <div class="tab" onclick="switchTab('insight',this)">🤖 AI Insight</div>
+  </div>
+
+  <!-- ── TAB: Shock Capacity ──────────────────────────────────────────────── -->
+  <div class="tab-content active" id="tab-shock">
+    <div id="shockContent"><div class="empty"><p>Click ⚡ Load to compute shock capacity</p></div></div>
+  </div>
+
+  <!-- ── TAB: Goal Impact ─────────────────────────────────────────────────── -->
+  <div class="tab-content" id="tab-goals">
+    <div id="goalContent"><div class="empty"><p>Click ⚡ Load to simulate goal impacts</p></div></div>
+  </div>
+
+  <!-- ── TAB: Savings Engine ──────────────────────────────────────────────── -->
+  <div class="tab-content" id="tab-savings">
+    <div id="savingsContent"><div class="empty"><p>Click ⚡ Load to analyse savings</p></div></div>
+  </div>
+
+  <!-- ── TAB: AI Insight ──────────────────────────────────────────────────── -->
+  <div class="tab-content" id="tab-insight">
+    <div style="margin-bottom:14px">
+      <button class="btn btn-teal" id="insightBtn" onclick="loadInsight()">🤖 Generate Insight</button>
+    </div>
+    <div id="insightContent"><div class="empty"><p>Click Generate Insight to call Mistral AI</p></div></div>
+  </div>
+
+</div>
+
+<div id="toast"></div>
+
+<script>
+const BASE = 'http://localhost:8002';
+let shockChart = null;
+let balanceChart = null;
+let currentScenarioIndex = 0;
+let goalData = null;
+
+/* ── Utils ─────────────────────────────────────────────────────────────────── */
+function uid(){ return parseInt(document.getElementById('userId').value) || 1; }
+function fmt(v){ if(v==null||isNaN(v)) return '—'; return '₹' + parseFloat(v).toLocaleString('en-IN',{maximumFractionDigits:0}); }
+function fmtR(v){ return parseFloat(v)||0; }
+function pct(v){ return (parseFloat(v)*100).toFixed(1)+'%'; }
+
+function toast(msg, type='ok'){
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.style.borderColor = type==='err' ? 'rgba(255,92,122,.4)' : 'rgba(0,212,170,.4)';
+  el.classList.add('show');
+  setTimeout(()=>el.classList.remove('show'), 3500);
+}
+
+function errBox(e){ return `<div class="err-box">❌ ${e.message || e}</div>`; }
+
+async function apiFetch(path){
+  const r = await fetch(BASE + path);
+  if(!r.ok){
+    const j = await r.json().catch(()=>({}));
+    throw new Error(j.detail || `HTTP ${r.status}`);
+  }
+  return r.json();
+}
+
+function switchTab(name, el){
+  document.querySelectorAll('.tab-content').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.getElementById('tab-'+name).classList.add('active');
+  el.classList.add('active');
+}
+
+/* ── Load All ──────────────────────────────────────────────────────────────── */
+async function loadAll(){
+  document.getElementById('dbBadge').textContent = '⏳ Loading…';
+  await Promise.all([loadShock(), loadGoals(), loadSavings()]);
+  document.getElementById('dbBadge').textContent = '🟢 Live';
+}
+
+/* ── SHOCK CAPACITY ─────────────────────────────────────────────────────────── */
+async function loadShock(){
+  try{
+    const d = await apiFetch(`/shock-engine/${uid()}`);
+    renderShock(d.data || d);
+    toast('✅ Shock capacity computed');
+  } catch(e){
+    document.getElementById('shockContent').innerHTML = errBox(e);
+    toast('❌ '+e.message,'err');
+  }
+}
+
+function renderShock(d){
+  const el = document.getElementById('shockContent');
+  document.getElementById('userName').textContent = d.user_name ? `👤 ${d.user_name}` : '';
+
+  const labelColor = d.resilience_label==='Safe'?'var(--green)':d.resilience_label==='Moderate'?'var(--blue)':d.resilience_label==='Fragile'?'var(--orange)':'var(--red)';
+  const labelPill  = d.resilience_label==='Safe'?'pill-g':d.resilience_label==='Moderate'?'pill-b':d.resilience_label==='Fragile'?'pill-o':'pill-r';
+
+  // Scores
+  let html = `<div class="g4 gap">
+    <div class="card metric"><div class="metric-val cp">${fmt(d.shock_capacity)}</div><div class="metric-lbl">Shock Capacity</div></div>
+    <div class="card metric"><div class="metric-val cg">${fmt(d.safe_shock_limit)}</div><div class="metric-lbl">Safe Limit (95%)</div></div>
+    <div class="card metric"><div class="metric-val co">${fmt(d.risk_threshold)}</div><div class="metric-lbl">Risk Threshold</div></div>
+    <div class="card metric"><div class="metric-val cr">${fmt(d.failure_threshold)}</div><div class="metric-lbl">Failure Threshold</div></div>
+  </div>`;
+
+  // Resilience + balance grid
+  html += `<div class="g2 gap">
+    <div class="card">
+      <div class="card-title">Resilience</div>
+      <div style="font-size:2.5rem;font-weight:800;color:${labelColor};text-align:center;padding:10px 0">${d.resilience_score}/100</div>
+      <div style="text-align:center;margin-bottom:14px"><span class="pill ${labelPill}" style="font-size:.85rem;padding:5px 14px">${d.resilience_label}</span></div>
+      <div class="pb-wrap">
+        <div class="pb-row"><span>Resilience Score</span><span>${d.resilience_score}/100</span></div>
+        <div class="pb"><div class="pf" style="width:${d.resilience_score}%;background:${labelColor}"></div></div>
+      </div>
+      <div class="pb-wrap" style="margin-top:10px">
+        <div class="pb-row"><span>Days to Depletion</span><span>${Math.min(d.days_to_depletion,999).toFixed(0)} days</span></div>
+        <div class="pb"><div class="pf" style="width:${Math.min(d.days_to_depletion/90*100,100).toFixed(0)}%;background:var(--blue)"></div></div>
+      </div>
+      ${d.depletion_risk ? '<div style="margin-top:12px;text-align:center"><span class="pill pill-r">⚠ Depletion Risk</span></div>' : '<div style="margin-top:12px;text-align:center"><span class="pill pill-g">✓ No Depletion Risk</span></div>'}
+    </div>
+    <div class="card">
+      <div class="card-title">Balance Snapshot</div>
+      <table>
+        <tr><td style="color:var(--text2)">Current Balance</td><td style="font-weight:700">${fmt(d.current_balance)}</td></tr>
+        <tr><td style="color:var(--text2)">Projected End-Month</td><td style="font-weight:700;color:var(--accent2)">${fmt(d.projected_end_balance)}</td></tr>
+        <tr><td style="color:var(--text2)">Confidence Low</td><td style="color:var(--red)">${fmt(d.confidence_band_low)}</td></tr>
+        <tr><td style="color:var(--text2)">Confidence High</td><td style="color:var(--green)">${fmt(d.confidence_band_high)}</td></tr>
+        <tr><td style="color:var(--text2)">Monthly Income</td><td style="font-weight:700">${fmt(d.monthly_income)}</td></tr>
+        <tr><td style="color:var(--text2)">Monthly Surplus</td><td style="color:${d.monthly_surplus>0?'var(--green)':'var(--red)'}">${fmt(d.monthly_surplus)}</td></tr>
+        <tr><td style="color:var(--text2)">Burn Rate/Day</td><td>${fmt(d.burn_rate_daily)}</td></tr>
+        <tr><td style="color:var(--text2)">Projection Method</td><td><span class="pill pill-p">${d.projection_method}</span></td></tr>
+      </table>
+    </div>
+  </div>`;
+
+  // Threshold visualizer
+  const maxShock = d.failure_threshold || d.current_balance * 0.8;
+  const safePct  = maxShock>0 ? (d.safe_shock_limit/maxShock*100).toFixed(1) : 33;
+  const riskPct  = maxShock>0 ? (d.risk_threshold/maxShock*100).toFixed(1)   : 66;
+  html += `<div class="card gap">
+    <div class="card-title">Shock Threshold Spectrum</div>
+    <div style="font-size:.78rem;color:var(--text2);margin-bottom:10px">Visualises where an unexpected expense transitions from safe → risk → failure</div>
+    <div class="threshold-bar">
+      <div class="th-marker" style="left:${safePct}%">
+        <div class="th-lbl" style="background:var(--green)">SAFE<br>${fmt(d.safe_shock_limit)}</div>
+        <div class="th-line" style="background:var(--green)"></div>
+      </div>
+      <div class="th-marker" style="left:${riskPct}%">
+        <div class="th-lbl" style="background:var(--orange)">RISK<br>${fmt(d.risk_threshold)}</div>
+        <div class="th-line" style="background:var(--orange)"></div>
+      </div>
+    </div>
+    <div style="display:flex;justify-content:space-between;font-size:.72rem;color:var(--text2);margin-top:8px">
+      <span style="color:var(--green)">● Safe zone</span>
+      <span style="color:var(--orange)">● Risk zone</span>
+      <span style="color:var(--red)">● Danger zone</span>
+    </div>
+  </div>`;
+
+  // Behavioral signals
+  html += `<div class="g2 gap">
+    <div class="card">
+      <div class="card-title">Behavioral Signals</div>
+      <table>
+        <tr><td style="color:var(--text2)">Expense Volatility</td><td>${(d.expense_volatility*100).toFixed(1)}% <span class="pill ${d.expense_volatility>0.4?'pill-r':d.expense_volatility>0.2?'pill-o':'pill-g'}">${d.expense_volatility>0.4?'High':d.expense_volatility>0.2?'Medium':'Low'}</span></td></tr>
+        <tr><td style="color:var(--text2)">Discretionary Ratio</td><td>${(d.discretionary_ratio*100).toFixed(1)}%</td></tr>
+        <tr><td style="color:var(--text2)">Trend Slope</td><td style="color:${d.trend_slope>1500?'var(--red)':d.trend_slope>0?'var(--orange)':'var(--green)'}">${d.trend_slope>0?'▲':'▼'} ₹${Math.abs(d.trend_slope).toLocaleString('en-IN',{maximumFractionDigits:0})}/month</td></tr>
+        <tr><td style="color:var(--text2)">Data Months</td><td>${d.data_months} months <span class="pill ${d.has_sufficient_data?'pill-g':'pill-o'}">${d.has_sufficient_data?'Sufficient':'Sparse'}</span></td></tr>
+        <tr><td style="color:var(--text2)">Simulations Run</td><td>${(d.simulation_count||0).toLocaleString()}</td></tr>
+      </table>
+    </div>
+    <div class="card">
+      <div class="card-title">Top Spending Categories</div>
+      ${(d.top_categories||[]).map((c,i)=>`
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+          <span style="color:var(--text2);font-size:.72rem;width:16px">#${i+1}</span>
+          <span class="pill pill-p">${c}</span>
+        </div>`).join('') || '<p style="color:var(--text2);font-size:.85rem">No category data</p>'}
+    </div>
+  </div>`;
+
+  // Interactive shock tester
+  const maxSlider = Math.ceil((d.current_balance || 100000) * 0.9 / 5000) * 5000;
+  html += `<div class="card gap">
+    <div class="card-title">🔬 Interactive Shock Tester</div>
+    <div class="shock-tester">
+      <div style="display:flex;align-items:center;gap:14px;margin-bottom:10px">
+        <span style="font-size:.82rem;color:var(--text2)">Test shock amount:</span>
+        <span id="sliderVal" style="font-size:1.3rem;font-weight:700;color:var(--accent)">₹10,000</span>
+        <span id="sliderLabel" class="pill pill-g">Safe</span>
+      </div>
+      <input type="range" class="shock-slider" id="shockSlider" min="1000" max="${maxSlider}" step="1000" value="10000"
+        oninput="updateSlider(${d.safe_shock_limit},${d.risk_threshold},${d.failure_threshold})"/>
+      <div style="display:flex;justify-content:space-between;font-size:.7rem;color:var(--text2)">
+        <span>₹1,000</span><span>${fmt(maxSlider)}</span>
+      </div>
+      <div id="sliderInsight" style="margin-top:12px;font-size:.83rem;color:var(--text2)"></div>
+    </div>
+  </div>`;
+
+  el.innerHTML = html;
+  // init slider
+  updateSlider(d.safe_shock_limit, d.risk_threshold, d.failure_threshold);
+}
+
+function updateSlider(safe, risk, fail){
+  const val = parseInt(document.getElementById('shockSlider').value);
+  document.getElementById('sliderVal').textContent = '₹' + val.toLocaleString('en-IN');
+  const lbl = document.getElementById('sliderLabel');
+  const ins = document.getElementById('sliderInsight');
+  if(val <= safe){
+    lbl.className='pill pill-g'; lbl.textContent='✓ Safe';
+    ins.textContent=`This expense is within your safe shock limit (${fmt(safe)}). Your goals remain on track.`;
+    ins.style.color='var(--green)';
+  } else if(val <= risk){
+    lbl.className='pill pill-o'; lbl.textContent='⚠ Caution';
+    ins.textContent=`This expense is in the caution zone (${fmt(safe)}–${fmt(risk)}). Some goal timelines may be affected.`;
+    ins.style.color='var(--orange)';
+  } else if(val <= fail){
+    lbl.className='pill pill-r'; lbl.textContent='⚡ Risk';
+    ins.textContent=`This expense crosses your risk threshold (${fmt(risk)}). Significant pressure on goals and balance.`;
+    ins.style.color='var(--red)';
+  } else {
+    lbl.className='pill pill-r'; lbl.textContent='🚨 Critical';
+    ins.textContent=`This expense exceeds your failure threshold (${fmt(fail)}). Balance depletion likely — avoid if possible.`;
+    ins.style.color='var(--red)';
+  }
+}
+
+/* ── GOAL IMPACT ─────────────────────────────────────────────────────────────── */
+async function loadGoals(){
+  try{
+    const d = await apiFetch(`/shock-engine/${uid()}/goal-impact`);
+    goalData = d.data || d;
+    renderGoals(goalData);
+    toast('✅ Goal impact simulated');
+  } catch(e){
+    document.getElementById('goalContent').innerHTML = errBox(e);
+  }
+}
+
+function renderGoals(d){
+  const el = document.getElementById('goalContent');
+  const scenarios = d.shock_scenarios || [];
+  if(!scenarios.length){ el.innerHTML='<div class="empty"><p>No goal scenarios available</p></div>'; return; }
+
+  // Scenario selector buttons
+  let html = `<div class="card gap">
+    <div class="card-title">Select Shock Scenario</div>
+    <div class="scenario-btns">`;
+  scenarios.forEach((s,i)=>{
+    const col = s.depletion_risk?'cr':s.total_delay_risk>3?'co':s.total_delay_risk>0?'cb':'cg';
+    html += `<button class="scenario-btn ${i===0?'active':''}" onclick="selectScenario(${i})" id="sbtn-${i}">
+      ${fmt(s.shock_amount)} <span class="${col}" style="font-size:.7rem"> · ${s.resilience_after}</span>
+    </button>`;
+  });
+  html += `</div></div>`;
+
+  html += `<div id="scenarioDetail"></div>`;
+  el.innerHTML = html;
+  renderScenario(scenarios[0]);
+}
+
+function selectScenario(i){
+  document.querySelectorAll('.scenario-btn').forEach(b=>b.classList.remove('active'));
+  document.getElementById('sbtn-'+i).classList.add('active');
+  const scenarios = goalData?.shock_scenarios || [];
+  if(scenarios[i]) renderScenario(scenarios[i]);
+}
+
+function renderScenario(s){
+  const el = document.getElementById('scenarioDetail');
+  const rCol = s.resilience_after==='Safe'?'cg':s.resilience_after==='Moderate'?'cb':s.resilience_after==='Fragile'?'co':'cr';
+
+  let html = `<div class="g3 gap" style="margin-top:16px">
+    <div class="card metric"><div class="metric-val cr">${fmt(s.shock_amount)}</div><div class="metric-lbl">Shock Applied</div></div>
+    <div class="card metric"><div class="metric-val ${rCol}">${s.resilience_after}</div><div class="metric-lbl">Resilience After</div></div>
+    <div class="card metric"><div class="metric-val ${s.total_delay_risk>0?'co':'cg'}">${s.total_delay_risk} mo</div><div class="metric-lbl">Total Goal Delay</div></div>
+  </div>`;
+
+  html += `<div class="g2 gap">`;
+  (s.goal_impacts||[]).forEach(g=>{
+    const impCol = g.impact_level==='None'?'cg':g.impact_level==='Low'?'cb':g.impact_level==='Medium'?'co':g.impact_level==='High'?'cr':'cr';
+    const impPill = g.impact_level==='None'?'pill-g':g.impact_level==='Low'?'pill-b':g.impact_level==='Medium'?'pill-o':'pill-r';
+    const progPct = Math.min(g.saved/g.target*100,100).toFixed(1);
+    html += `<div class="goal-card">
+      <div class="goal-delay pill ${impPill}">${g.impact_level}</div>
+      <div style="font-weight:700;margin-bottom:4px">${g.goal_name}</div>
+      <div style="font-size:.72rem;color:var(--text2);margin-bottom:8px">${fmt(g.saved)} / ${fmt(g.target)}</div>
+      <div class="goal-progress"><div class="goal-pf" style="width:${progPct}%"></div></div>
+      <div style="font-size:.7rem;color:var(--text2);margin-bottom:10px">${progPct}% complete</div>
+      <table style="font-size:.78rem">
+        <tr><td style="color:var(--text2);padding:3px 0">Delay</td><td style="font-weight:700;color:${g.delay_in_months>0?'var(--red)':'var(--green)'}"> ${g.delay_in_months>0?'+'+g.delay_in_months+' months':'On Track'}</td></tr>
+        <tr><td style="color:var(--text2);padding:3px 0">Gap</td><td>${fmt(g.contribution_gap)}/mo</td></tr>
+        <tr><td style="color:var(--text2);padding:3px 0">New Completion</td><td>${g.new_completion_date}</td></tr>
+      </table>
+      ${g.suggestion?`<div style="margin-top:10px;font-size:.75rem;background:rgba(108,99,255,.1);border-radius:8px;padding:8px;color:var(--text2)">💡 ${g.suggestion}</div>`:''}
+    </div>`;
+  });
+  html += `</div>`;
+  el.innerHTML = html;
+}
+
+/* ── SAVINGS ENGINE ──────────────────────────────────────────────────────────── */
+async function loadSavings(){
+  try{
+    const d = await apiFetch(`/shock-engine/${uid()}/savings-insights`);
+    renderSavings(d.data || d);
+    toast('✅ Savings analysis complete');
+  } catch(e){
+    document.getElementById('savingsContent').innerHTML = errBox(e);
+  }
+}
+
+function renderSavings(d){
+  const el = document.getElementById('savingsContent');
+  const opps = d.opportunities || [];
+
+  let html = `<div class="g4 gap">
+    <div class="card metric"><div class="metric-val cg">${fmt(d.total_monthly_saveable)}</div><div class="metric-lbl">Total Saveable/Month</div></div>
+    <div class="card metric"><div class="metric-val cp">${opps.length}</div><div class="metric-lbl">Opportunities Found</div></div>
+    <div class="card metric"><div class="metric-val cb">${fmt(d.current_balance)}</div><div class="metric-lbl">Current Balance</div></div>
+    <div class="card metric"><div class="metric-val">${fmt(d.monthly_income)}</div><div class="metric-lbl">Monthly Income</div></div>
+  </div>`;
+
+  if(d.resilience_boost){
+    html += `<div class="insight-box gap" style="margin-bottom:18px">${d.resilience_boost}</div>`;
+  }
+
+  html += `<div class="card gap"><div class="card-title">Savings Opportunities</div>`;
+  if(!opps.length){
+    html += '<p style="color:var(--text2)">No significant savings opportunities detected based on current spending patterns.</p>';
+  } else {
+    opps.forEach(o=>{
+      const confCol = o.confidence==='High'?'high':o.confidence==='Medium'?'medium':'low';
+      html += `<div class="opp-card ${confCol}" style="margin-bottom:12px">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px">
+          <div>
+            <span class="pill pill-p" style="margin-bottom:6px;display:inline-block">${o.category}</span>
+            <div style="font-size:.8rem;color:var(--text2)">${o.reason}</div>
+          </div>
+          <div class="opp-save">${fmt(o.save_amount)}</div>
+        </div>
+        <div class="pb-wrap">
+          <div class="pb-row">
+            <span>Current: ${fmt(o.current_spend)}</span>
+            <span>Baseline: ${fmt(o.baseline_spend)}</span>
+          </div>
+          <div class="pb"><div class="pf" style="width:${Math.min(o.current_spend/Math.max(o.current_spend,1)*100,100).toFixed(0)}%;background:var(--red)"></div></div>
+        </div>
+        <div style="margin-top:10px;font-size:.78rem;color:var(--accent2)">💡 ${o.insight}</div>
+        <div style="margin-top:8px"><span class="pill ${o.confidence==='High'?'pill-g':o.confidence==='Medium'?'pill-o':'pill-b'}">Confidence: ${o.confidence}</span></div>
+      </div>`;
+    });
+  }
+  html += `</div>`;
+
+  // Top risk categories chart
+  if(d.top_risk_categories && d.top_risk_categories.length){
+    html += `<div class="card"><div class="card-title">Top Risk Categories</div>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:4px">
+        ${d.top_risk_categories.map((c,i)=>`<span class="pill ${['pill-r','pill-o','pill-p'][i]||'pill-b'}">${c}</span>`).join('')}
+      </div>
+    </div>`;
+  }
+
+  el.innerHTML = html;
+}
+
+/* ── AI INSIGHT ──────────────────────────────────────────────────────────────── */
+async function loadInsight(){
+  const btn = document.getElementById('insightBtn');
+  btn.disabled=true; btn.innerHTML='<span class="spinner"></span> Calling Mistral…';
+  try{
+    const d = await apiFetch(`/shock-engine/${uid()}/insight`);
+    renderInsight(d.data || d);
+    toast('✅ AI insight generated');
+  } catch(e){
+    document.getElementById('insightContent').innerHTML = errBox(e);
+    toast('❌ '+e.message,'err');
+  } finally{
+    btn.disabled=false; btn.innerHTML='🤖 Generate Insight';
+  }
+}
+
+function renderInsight(d){
+  const el = document.getElementById('insightContent');
+  const src = d.insight_source || 'unknown';
+  const srcBadge = src==='ollama'
+    ? `<span class="pill pill-g">🟢 Ollama · mistral:latest</span>`
+    : src==='api'
+    ? `<span class="pill pill-b">☁️ Mistral API</span>`
+    : `<span class="pill pill-o">🔶 Rule-based fallback</span>`;
+
+  const ss = d.shock_summary || {};
+  const sv = d.savings_summary || {};
+  const rCol = ss.resilience_label==='Safe'?'cg':ss.resilience_label==='Moderate'?'cb':ss.resilience_label==='Fragile'?'co':'cr';
+
+  let html = `<div class="card gap">
+    <div class="card-title" style="display:flex;align-items:center;gap:10px">
+      AI Insight &nbsp;${srcBadge}
+    </div>
+    <div class="insight-box">${d.insight || 'No insight returned.'}</div>
+  </div>`;
+
+  html += `<div class="g2 gap">
+    <div class="card"><div class="card-title">Shock Summary</div>
+      <table>
+        <tr><td style="color:var(--text2)">Shock Capacity</td><td style="font-weight:700;color:var(--accent)">${fmt(ss.shock_capacity)}</td></tr>
+        <tr><td style="color:var(--text2)">Safe Limit</td><td style="font-weight:700;color:var(--green)">${fmt(ss.safe_shock_limit)}</td></tr>
+        <tr><td style="color:var(--text2)">Resilience</td><td><span class="pill ${ss.resilience_label==='Safe'?'pill-g':ss.resilience_label==='Moderate'?'pill-b':ss.resilience_label==='Fragile'?'pill-o':'pill-r'}">${ss.resilience_label}</span> ${ss.resilience_score}/100</td></tr>
+        <tr><td style="color:var(--text2)">Current Balance</td><td>${fmt(ss.current_balance)}</td></tr>
+        <tr><td style="color:var(--text2)">Projected End</td><td style="color:var(--accent2)">${fmt(ss.projected_end_balance)}</td></tr>
+        <tr><td style="color:var(--text2)">Depletion Risk</td><td>${ss.depletion_risk?'<span class="pill pill-r">⚠ Risk</span>':'<span class="pill pill-g">✓ Safe</span>'}</td></tr>
+      </table>
+    </div>
+    <div class="card"><div class="card-title">Savings Summary</div>
+      <div style="font-size:2rem;font-weight:800;color:var(--green);margin-bottom:8px">${fmt(sv.total_monthly_saveable)}</div>
+      <div style="font-size:.72rem;color:var(--text2);margin-bottom:14px">TOTAL MONTHLY SAVEABLE</div>
+      <div style="font-size:.72rem;color:var(--text2);margin-bottom:8px">TOP RISK CATEGORIES</div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px">
+        ${(sv.top_risk_categories||[]).map(c=>`<span class="pill pill-r">${c}</span>`).join('') || '—'}
+      </div>
+      ${(sv.opportunities||[]).slice(0,2).map(o=>`
+        <div style="margin-top:12px;font-size:.78rem;color:var(--text2);background:var(--surface2);border-radius:8px;padding:10px">
+          <strong style="color:var(--text)">${o.category}</strong> — Save ${fmt(o.save_amount)}/month<br>
+          <span>${o.insight}</span>
+        </div>`).join('')}
+    </div>
+  </div>`;
+
+  el.innerHTML = html;
+}
+
+/* ── Auto-load ─────────────────────────────────────────────────────────────── */
+window.addEventListener('DOMContentLoaded', ()=> loadAll());
+</script>
+</body>
+</html>
