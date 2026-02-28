@@ -422,6 +422,93 @@ class ApiService {
       rethrow;
     }
   }
+
+  /// Fetch user goals with timeline simulation data
+  Future<GoalsListResponse> getGoals({
+    required int userId,
+  }) async {
+    try {
+      final uri = Uri.parse('$baseUrl/goals/list').replace(
+        queryParameters: {'user_id': userId.toString()},
+      );
+
+      final response = await http.get(
+        uri,
+        headers: {'Content-Type': 'application/json'},
+      ).timeout(
+        const Duration(seconds: 30),
+        onTimeout: () => throw TimeoutException('getGoals request timed out'),
+      );
+
+      if (response.statusCode == 200) {
+        final jsonResponse = jsonDecode(response.body);
+        if (jsonResponse['success'] == true) {
+          return GoalsListResponse.fromJson(jsonResponse);
+        }
+        throw Exception(jsonResponse['error'] ?? 'Failed to load goals');
+      } else {
+        throw Exception('Failed to load goals: ${response.statusCode} - ${response.body}');
+      }
+    } catch (e) {
+      debugPrint('Error in getGoals: $e');
+      rethrow;
+    }
+  }
+
+  /// Create a new goal for the user
+  Future<Map<String, dynamic>> createGoal({
+    required int userId,
+    required String goalName,
+    required String goalType,
+    required double targetAmount,
+    required double currentSaved,
+    double? monthlyContribution,
+    String? deadline,
+    int priority = 2,
+  }) async {
+    try {
+      final uri = Uri.parse('$baseUrl/goals/create');
+      
+      final formData = {
+        'user_id': userId.toString(),
+        'goal_name': goalName,
+        'goal_type': goalType,
+        'target_amount': targetAmount.toString(),
+        'current_saved': currentSaved.toString(),
+        'priority': priority.toString(),
+      };
+      
+      if (monthlyContribution != null) {
+        formData['monthly_contribution'] = monthlyContribution.toString();
+      }
+      
+      if (deadline != null) {
+        formData['deadline'] = deadline;
+      }
+
+      final response = await http.post(
+        uri,
+        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+        body: formData,
+      ).timeout(
+        const Duration(seconds: 30),
+        onTimeout: () => throw TimeoutException('createGoal request timed out'),
+      );
+
+      if (response.statusCode == 200) {
+        final jsonResponse = jsonDecode(response.body);
+        if (jsonResponse['success'] == true) {
+          return jsonResponse;
+        }
+        throw Exception(jsonResponse['error'] ?? 'Failed to create goal');
+      } else {
+        throw Exception('Failed to create goal: ${response.statusCode} - ${response.body}');
+      }
+    } catch (e) {
+      debugPrint('Error in createGoal: $e');
+      rethrow;
+    }
+  }
 }
 
 // ────────────────────────────────────────────────────────
@@ -780,6 +867,7 @@ class DashboardSummary {
   final FinancialStability? financialStability;
   final DateTime? monthStart;
   final DateTime? generatedAt;
+  final StreakMetrics? streakMetrics;
 
   DashboardSummary({
     required this.incomeVsExpense,
@@ -820,7 +908,48 @@ class DashboardSummary {
           : null,
       monthStart: _toDate(timeframe['month_start']),
       generatedAt: _toDate(timeframe['generated_at']),
+      streakMetrics: summary['streak_metrics'] is Map<String, dynamic>
+          ? StreakMetrics.fromJson(summary['streak_metrics'] as Map<String, dynamic>)
+          : null,
     );
+
+}
+
+class StreakMetrics {
+  final int streakMonths;
+  final int streakDays;
+  final double consistencyPct;
+  final double score;
+  final double totalSipAmount;
+  final int missedMonths;
+
+  StreakMetrics({
+    required this.streakMonths,
+    required this.streakDays,
+    required this.consistencyPct,
+    required this.score,
+    required this.totalSipAmount,
+    required this.missedMonths,
+  });
+
+  factory StreakMetrics.fromJson(Map<String, dynamic> json) {
+    double? _toDouble(dynamic value) {
+      if (value == null) return null;
+      if (value is double) return value;
+      if (value is int) return value.toDouble();
+      if (value is String) return double.tryParse(value);
+      return null;
+    }
+    return StreakMetrics(
+      streakMonths: json['streak_months'] ?? 0,
+      streakDays: json['streak_days'] ?? 0,
+      consistencyPct: _toDouble(json['consistency_pct']) ?? 0.0,
+      score: _toDouble(json['score']) ?? 0.0,
+      totalSipAmount: _toDouble(json['total_sip_amount']) ?? 0.0,
+      missedMonths: json['missed_months'] ?? 0,
+    );
+  }
+}
   }
 }
 
@@ -1147,6 +1276,176 @@ class OCRResult {
   }
 }
 
+// ────────────────────────────────────────────────────────
+// DATA MODELS - GOALS
+// ────────────────────────────────────────────────────────
+
+class GoalsListResponse {
+  final bool success;
+  final int userId;
+  final int total;
+  final List<GoalItem> goals;
+
+  GoalsListResponse({
+    required this.success,
+    required this.userId,
+    required this.total,
+    required this.goals,
+  });
+
+  factory GoalsListResponse.fromJson(Map<String, dynamic> json) {
+    final goalsList = (json['goals'] as List<dynamic>? ?? [])
+        .map((item) => GoalItem.fromJson(item as Map<String, dynamic>))
+        .toList();
+
+    return GoalsListResponse(
+      success: json['success'] ?? false,
+      userId: json['user_id'] ?? 1,
+      total: json['total'] ?? 0,
+      goals: goalsList,
+    );
+  }
+}
+
+class GoalItem {
+  final int goalId;
+  final String goalName;
+  final String? goalType;
+  final double targetAmount;
+  final double currentAmount;
+  final double monthlyContribution;
+  final String? deadline;
+  final int priority;
+  final double progressPct;
+  final GoalTimeline timeline;
+  final double? feasibilityScore;
+  final String? healthTag;
+  final String? feasibilityNote;
+
+  GoalItem({
+    required this.goalId,
+    required this.goalName,
+    this.goalType,
+    required this.targetAmount,
+    required this.currentAmount,
+    required this.monthlyContribution,
+    this.deadline,
+    required this.priority,
+    required this.progressPct,
+    required this.timeline,
+    this.feasibilityScore,
+    this.healthTag,
+    this.feasibilityNote,
+  });
+
+  // Determine icon based on goal type
+  IconData get icon {
+    final type = goalType?.toLowerCase() ?? '';
+    if (type.contains('emergency')) return Icons.health_and_safety;
+    if (type.contains('retirement')) return Icons.trending_up;
+    if (type.contains('education')) return Icons.school;
+    if (type.contains('home')) return Icons.home;
+    if (type.contains('trip') || type.contains('travel')) return Icons.flight_takeoff;
+    if (type.contains('car') || type.contains('vehicle')) return Icons.directions_car;
+    return Icons.track_changes;
+  }
+
+  // Color based on status
+  Color get statusColor {
+    switch (timeline.status) {
+      case 'early':
+        return const Color(0xFF5DF22A); // Green
+      case 'on_time':
+        return const Color(0xFF5DF22A); // Green
+      case 'late':
+        return const Color(0xFFFF9800); // Orange
+      default:
+        return const Color(0xFFFF6F61); // Red
+    }
+  }
+
+  factory GoalItem.fromJson(Map<String, dynamic> json) {
+    double? toDouble(dynamic value) {
+      if (value == null) return null;
+      if (value is double) return value;
+      if (value is int) return value.toDouble();
+      if (value is String) return double.tryParse(value);
+      return null;
+    }
+
+    int? toInt(dynamic value) {
+      if (value == null) return null;
+      if (value is int) return value;
+      if (value is double) return value.toInt();
+      if (value is String) return int.tryParse(value);
+      return null;
+    }
+
+    return GoalItem(
+      goalId: toInt(json['goal_id']) ?? 0,
+      goalName: (json['goal_name'] ?? 'Goal').toString(),
+      goalType: json['goal_type']?.toString(),
+      targetAmount: toDouble(json['target_amount']) ?? 0.0,
+      currentAmount: toDouble(json['current_amount']) ?? 0.0,
+      monthlyContribution: toDouble(json['monthly_contribution']) ?? 0.0,
+      deadline: json['deadline']?.toString(),
+      priority: toInt(json['priority']) ?? 2,
+      progressPct: toDouble(json['progress_pct']) ?? 0.0,
+      timeline: GoalTimeline.fromJson(
+        json['timeline'] as Map<String, dynamic>? ?? {},
+      ),
+      feasibilityScore: toDouble(json['feasibility_score']),
+      healthTag: json['health_tag']?.toString(),
+      feasibilityNote: json['feasibility_note']?.toString(),
+    );
+  }
+}
+
+class GoalTimeline {
+  final int monthsToTarget;
+  final int monthsToDeadline;
+  final int deltaMonths;
+  final String status; // 'on_time', 'early', 'late', 'impossible'
+  final double feasibilityPct;
+  final double? runwayMonths;
+
+  GoalTimeline({
+    required this.monthsToTarget,
+    required this.monthsToDeadline,
+    required this.deltaMonths,
+    required this.status,
+    required this.feasibilityPct,
+    this.runwayMonths,
+  });
+
+  factory GoalTimeline.fromJson(Map<String, dynamic> json) {
+    double? toDouble(dynamic value) {
+      if (value == null) return null;
+      if (value is double) return value;
+      if (value is int) return value.toDouble();
+      if (value is String) return double.tryParse(value);
+      return null;
+    }
+
+    int? toInt(dynamic value) {
+      if (value == null) return null;
+      if (value is int) return value;
+      if (value is double) return value.toInt();
+      if (value is String) return int.tryParse(value);
+      return null;
+    }
+
+    return GoalTimeline(
+      monthsToTarget: toInt(json['months_to_target']) ?? 0,
+      monthsToDeadline: toInt(json['months_to_deadline']) ?? 0,
+      deltaMonths: toInt(json['delta_months']) ?? 0,
+      status: (json['status'] ?? 'on_time').toString(),
+      feasibilityPct: toDouble(json['feasibility_pct']) ?? 0.0,
+      runwayMonths: toDouble(json['runway_months']),
+    );
+  }
+}
+
 // Exception classes
 class TimeoutException implements Exception {
   final String message;
@@ -1155,3 +1454,4 @@ class TimeoutException implements Exception {
   @override
   String toString() => message;
 }
+

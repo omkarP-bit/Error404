@@ -35,6 +35,7 @@ class Goal(Base):
     target_amount: Mapped[float] = mapped_column(Float, nullable=False)
     current_amount: Mapped[float] = mapped_column(Float, default=0.0)
     deadline: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
+    monthly_contribution: Mapped[float] = mapped_column(Float, default=0.0)
     status: Mapped[GoalStatus] = mapped_column(
         SQLEnum(GoalStatus), default=GoalStatus.ACTIVE
     )

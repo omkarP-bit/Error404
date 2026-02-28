@@ -37,6 +37,7 @@ from app.models.mf_instrument import MFInstrument                         # noqa
 from app.models.mf_recommendation import MFRecommendation                 # noqa: F401
 from app.models.mf_watchlist import MFWatchlist                           # noqa: F401
 from app.models.notification_log import NotificationLog                    # noqa: F401
+from app.models.savings_activity import SavingsActivity                    # noqa: F401
 
 __all__ = [
     # Core
@@ -47,7 +48,7 @@ __all__ = [
     "Currency", "FundCategory", "Receipt", "BudgetProfile",
     "SavingsPot", "TransactionPattern", "MLModelRun",
     "FinancialHealthRating", "MFInstrument", "MFRecommendation",
-    "MFWatchlist", "NotificationLog",
+    "MFWatchlist", "NotificationLog", "SavingsActivity",
     # Enums
     "IncomeType", "RiskProfile", "KYCStatus", "AccountType",
     "TxnType", "FeedbackSource", "MappingSource",

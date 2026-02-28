@@ -165,7 +165,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           _buildHeader(context),
-          const SizedBox(height: 40),
+          const SizedBox(height: 24),
+          _buildHeroBanner(),
+          const SizedBox(height: 32),
           _buildStabilityScore(),
           const SizedBox(height: 30),
           _buildIncomeSavingsRow(),
@@ -177,6 +179,88 @@ class _DashboardScreenState extends State<DashboardScreen> {
         ],
       ),
     );
+
+  }
+
+  Widget _buildHeroBanner() {
+    final streak = _summary?.streakMetrics;
+    if (streak == null) {
+      return SizedBox.shrink();
+    }
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.symmetric(horizontal: 0),
+      padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 24),
+      decoration: BoxDecoration(
+        color: DashboardScreen.accentGreen.withOpacity(0.12),
+        borderRadius: BorderRadius.circular(24),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Text(
+            'Momentum Streak',
+            style: TextStyle(
+              color: DashboardScreen.accentGreen,
+              fontSize: 22,
+              fontWeight: FontWeight.bold,
+              letterSpacing: 1.2,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: [
+              _heroStat('Streak', '${streak.streakDays} days', Icons.flash_on, DashboardScreen.accentGreen),
+              _heroStat('Consistency', '${streak.consistencyPct.toStringAsFixed(0)}%', Icons.timeline, DashboardScreen.textSecondary),
+              _heroStat('Score', '${streak.score.toStringAsFixed(0)} / 100', Icons.emoji_events, DashboardScreen.textPrimary),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Text(
+            'Last ${streak.streakMonths} months streak · ${streak.missedMonths} missed',
+            style: TextStyle(
+              color: DashboardScreen.textSecondary,
+              fontSize: 13,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _heroStat(String label, String value, IconData icon, Color color) {
+    return Column(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: color.withOpacity(0.18),
+            shape: BoxShape.circle,
+          ),
+          child: Icon(icon, color: color, size: 22),
+        ),
+        const SizedBox(height: 6),
+        Text(
+          value,
+          style: TextStyle(
+            color: DashboardScreen.textDark,
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        Text(
+          label,
+          style: TextStyle(
+            color: DashboardScreen.textSecondary,
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ],
+    );
+  }
   }
 
   Widget _buildHeader(BuildContext context) {

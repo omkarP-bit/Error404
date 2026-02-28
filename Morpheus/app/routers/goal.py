@@ -28,6 +28,7 @@ from pathlib import Path
 
 from app.database import get_db
 from app.models import User, Goal
+from app.engines.goal_timeline_simulator import simulate_goal_timeline
 
 router     = APIRouter(prefix="/goal-test", tags=["Goal"])
 api_router = APIRouter(prefix="/api", tags=["Goal API"])
@@ -233,3 +234,229 @@ async def retrain_goal(
         return JSONResponse({"success": True, "report": report})
     except Exception as exc:
         return JSONResponse({"success": False, "error": str(exc)}, status_code=500)
+
+
+@api_router.get("/goals/list")
+async def list_user_goals(
+    user_id: int = 1,
+    db: Session = Depends(get_db),
+):
+    """
+    Fetch all active goals for a user with timeline simulation data.
+    
+    Returns:
+        {
+            'success': true,
+            'goals': [
+                {
+                    'goal_id': int,
+                    'goal_name': str,
+                    'goal_type': str,
+                    'target_amount': float,
+                    'current_amount': float,
+                    'monthly_contribution': float,
+                    'deadline': date,
+                    'progress_pct': float,
+                    'timeline': {
+                        'months_to_target': int,
+                        'months_to_deadline': int,
+                        'delta_months': int,
+                        'status': 'on_time|early|late|impossible',
+                        'feasibility_pct': float,
+                    },
+                    'feasibility_score': Optional[float],
+                    'health_tag': Optional[str],
+                }
+            ]
+        }
+    """
+    try:
+        user = db.query(User).filter(User.user_id == user_id).first()
+        if not user:
+            return JSONResponse({"success": False, "error": "User not found"}, status_code=404)
+        
+        goals = db.query(Goal).filter(
+            Goal.user_id == user_id,
+            Goal.status == "active"
+        ).all()
+        
+        goals_payload = []
+        for goal in goals:
+            timeline = simulate_goal_timeline(goal)
+            
+            goals_payload.append({
+                "goal_id": goal.goal_id,
+                "goal_name": goal.goal_name,
+                "goal_type": goal.goal_type,
+                "target_amount": round(goal.target_amount, 2),
+                "current_amount": round(goal.current_amount, 2),
+                "monthly_contribution": round(goal.monthly_contribution, 2),
+                "deadline": goal.deadline.isoformat() if goal.deadline else None,
+                "priority": goal.priority,
+                "progress_pct": goal.progress_pct,
+                "timeline": timeline,
+                "feasibility_score": round(goal.feasibility_score, 2) if goal.feasibility_score else None,
+                "health_tag": goal.health_tag,
+                "feasibility_note": goal.feasibility_note,
+            })
+        
+        # Sort by priority (1=High first) then by deadline
+        goals_payload.sort(key=lambda g: (g["priority"], g["deadline"] or "9999-12-31"))
+        
+        return JSONResponse({
+            "success": True,
+            "user_id": user_id,
+            "total": len(goals_payload),
+            "goals": goals_payload,
+        })
+    except Exception as exc:
+        import traceback
+        return JSONResponse({
+            "success": False,
+            "error": str(exc),
+            "trace": traceback.format_exc(),
+        }, status_code=500)
+
+
+@api_router.post("/goals/create")
+async def create_goal(
+    user_id: int = Form(1),
+    goal_name: str = Form(...),
+    goal_type: str = Form(...),
+    target_amount: float = Form(...),
+    current_saved: float = Form(0.0),
+    monthly_contribution: float = Form(None),
+    deadline: str = Form(None),
+    priority: int = Form(2),
+    db: Session = Depends(get_db),
+):
+    """
+    Create a new goal for a user.
+    
+    Now supports auto-calculation of monthly SIP based on current_saved.
+    
+    Parameters:
+        user_id: int
+        goal_name: str (e.g., "Emergency Fund")
+        goal_type: str (e.g., "emergency_fund", "retirement", "short_term")
+        target_amount: float
+        current_saved: float (how much already saved, used for SIP calculation)
+        monthly_contribution: float or None (if None, will be calculated)
+        deadline: str or None (YYYY-MM-DD format, required if calculating SIP)
+        priority: int (1=High, 2=Medium, 3=Low)
+    
+    Returns:
+        {
+            'success': true,
+            'goal_id': int,
+            'monthly_contribution': float (actual/calculated),
+            'sip_calculated': bool,
+            'message': 'Goal created successfully'
+        }
+    """
+    try:
+        user = db.query(User).filter(User.user_id == user_id).first()
+        if not user:
+            return JSONResponse({"success": False, "error": "User not found"}, status_code=404)
+        
+        from datetime import datetime
+        deadline_date = None
+        sip_calculated = False
+        final_sip = monthly_contribution or 0.0
+        
+        if deadline:
+            try:
+                deadline_date = datetime.fromisoformat(deadline).date()
+            except:
+                return JSONResponse(
+                    {"success": False, "error": "Invalid date format. Use YYYY-MM-DD"},
+                    status_code=400
+                )
+        
+        # If monthly_contribution not provided, calculate it
+        if monthly_contribution is None and deadline_date:
+            from app.engines.sip_calculator import calculate_required_sip
+            from app.engines.goal_timeline_simulator import get_expected_return
+            
+            annual_return = get_expected_return(goal_type)
+            calc_result = calculate_required_sip(
+                target_amount=target_amount,
+                current_saved=current_saved,
+                deadline_date=deadline_date,
+                expected_annual_return=annual_return,
+            )
+            final_sip = calc_result['required_monthly_sip']
+            sip_calculated = True
+        elif monthly_contribution is None:
+            return JSONResponse(
+                {
+                    "success": False,
+                    "error": "Either monthly_contribution or deadline must be provided for SIP calculation",
+                },
+                status_code=400,
+            )
+        
+        # Create the new goal
+        new_goal = Goal(
+            user_id=user_id,
+            goal_name=goal_name,
+            goal_type=goal_type,
+            target_amount=target_amount,
+            current_amount=current_saved,  # Set to current_saved
+            monthly_contribution=final_sip,
+            deadline=deadline_date,
+            priority=priority,
+            status="active",
+        )
+        
+        db.add(new_goal)
+        db.flush()  # Flush to get the ID
+        
+        # Check if emergency fund exists, if not and this isn't one, create it
+        if goal_type and 'emergency' not in goal_type.lower():
+            emergency_exists = db.query(Goal).filter(
+                Goal.user_id == user_id,
+                Goal.goal_type.ilike('%emergency%'),
+                Goal.status == 'active',
+            ).first()
+            
+            if not emergency_exists:
+                # Auto-create emergency fund
+                from app.models import Account
+                accounts = db.query(Account).filter(Account.user_id == user_id).all()
+                total_balance = sum(acc.balance for acc in accounts) if accounts else 0
+                
+                # Default target: 3 months of expenses or 50k
+                emergency_target = max(150000.0, total_balance * 0.5)  # 3x monthly avg or 50% of current balance
+                
+                emergency_fund = Goal(
+                    user_id=user_id,
+                    goal_name="Emergency Fund",
+                    goal_type="emergency_fund",
+                    target_amount=emergency_target,
+                    current_amount=0.0,
+                    monthly_contribution=0.0,  # Will be allocated by priority engine
+                    priority=1,  # Highest priority
+                    status="active",
+                )
+                db.add(emergency_fund)
+        
+        db.commit()
+        db.refresh(new_goal)
+        
+        return JSONResponse({
+            "success": True,
+            "goal_id": new_goal.goal_id,
+            "monthly_contribution": round(final_sip, 2),
+            "sip_calculated": sip_calculated,
+            "message": "Goal created successfully",
+        })
+    except Exception as exc:
+        db.rollback()
+        import traceback
+        return JSONResponse({
+            "success": False,
+            "error": str(exc),
+            "trace": traceback.format_exc(),
+        }, status_code=500)
+
