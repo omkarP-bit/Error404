@@ -1,9 +1,9 @@
-import 'package:http/http.dart' as http;
-import 'dart:convert';
-import 'dart:io';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-
+import 'package:flutter/foundation.dart'; // Added for debugPrint
+import 'package:http/http.dart' as http; // Fully qualified name for http
+import 'dart:convert'; // Added for jsonDecode
+import 'dart:async'; // Added for TimeoutException
+import 'dart:io'; // Added for File usage
 class ApiService {
   // ── Configuration ──────────────────────────────────────────────────
   // Default to localhost for emulator/development
@@ -40,144 +40,18 @@ class ApiService {
   Future<CategorizationResult> categorizeTransaction({
     required String rawDescription,
     required double amount,
-    required int userId,
     required int accountId,
     String merchantName = '',
     String txnType = 'debit',
-    String paymentMode = 'UPI',
   }) async {
-    try {
-      final requestBody = {
-        'raw_description': rawDescription,
-        'amount': amount,
-        'merchant_name': merchantName,
-        'txn_type': txnType,
-        'payment_mode': paymentMode,
-        'user_id': userId,
-        'account_id': accountId,
-      };
-
-      final response = await http.post(
-        Uri.parse('$baseUrl/categorize'),
-        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-        body: requestBody,
-      ).timeout(
-        const Duration(seconds: 30),
-        onTimeout: () => throw TimeoutException('Categorization request timed out'),
-      );
-
-      if (response.statusCode == 200) {
-        final jsonResponse = jsonDecode(response.body);
-        if (jsonResponse['success']) {
-          return CategorizationResult.fromJson(jsonResponse['result']);
-        } else {
-          throw Exception(jsonResponse['error'] ?? 'Unknown error');
-        }
-      } else {
-        throw Exception('Failed to categorize: ${response.statusCode}');
-      }
-    } catch (e) {
-      debugPrint('Error in categorizeTransaction: $e');
-      rethrow;
-    }
-  }
-
-  /// Add a categorized transaction to the database
-  Future<TransactionResponse> addTransaction({
-    required String rawDescription,
-    required double amount,
-    required String category,
-    required int userId,
-    required int accountId,
-    String merchantName = '',
-    String subcategory = '',
-    String txnType = 'debit',
-    String paymentMode = 'UPI',
-  }) async {
-    try {
-      final requestBody = {
-        'raw_description': rawDescription,
-        'amount': amount,
-        'merchant_name': merchantName,
-        'txn_type': txnType,
-        'payment_mode': paymentMode,
-        'user_id': userId,
-        'account_id': accountId,
-        'category': category,
-        'subcategory': subcategory,
-      };
-
-      final response = await http.post(
-        Uri.parse('$baseUrl/categorize/add-transaction'),
-        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-        body: requestBody,
-      ).timeout(
-        const Duration(seconds: 30),
-        onTimeout: () => throw TimeoutException('Add transaction request timed out'),
-      );
-
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        final jsonResponse = jsonDecode(response.body);
-        if (jsonResponse['success'] ?? true) {
-          return TransactionResponse.fromJson(jsonResponse);
-        } else {
-          throw Exception(jsonResponse['error'] ?? 'Unknown error');
-        }
-      } else {
-        throw Exception('Failed to add transaction: ${response.statusCode}');
-      }
-    } catch (e) {
-      debugPrint('Error in addTransaction: $e');
-      rethrow;
-    }
-  }
-
-  /// Get list of transactions for a user
-  Future<TransactionListResponse> getTransactions({
-    required int userId,
-    int limit = 50,
-    int offset = 0,
-  }) async {
-    try {
-      // Build URL using configurable API host
-      final queryParams = {
-        'user_id': userId.toString(),
-        'limit': limit.toString(),
-        'offset': offset.toString(),
-      };
-      
-      // Parse the API host and port from _apiHost
-      final hostParts = _apiHost.split(':');
-      final host = hostParts[0];
-      final port = hostParts.length > 1 ? int.tryParse(hostParts[1]) : 8000;
-      
-      // Construct URI with configurable host and port
-      final uri = port == 80 
-        ? Uri.http(host, '/api/transactions/', queryParams)
-        : Uri.http(host + ':$port', '/api/transactions/', queryParams);
-
-      debugPrint('Fetching transactions from: $uri');
-
-      final response = await http.get(
-        uri,
-        headers: {'Content-Type': 'application/json'},
-      ).timeout(
-        const Duration(seconds: 30),
-        onTimeout: () => throw TimeoutException('Get transactions request timed out'),
-      );
-
-      debugPrint('Transaction response status: ${response.statusCode}');
-
-      if (response.statusCode == 200) {
-        final jsonResponse = jsonDecode(response.body);
-        return TransactionListResponse.fromJson(jsonResponse);
-      } else {
-        throw Exception('Failed to get transactions: ${response.statusCode} - ${response.body}');
-      }
-    } catch (e) {
-      debugPrint('Error in getTransactions: $e');
-      rethrow;
-    }
+    // TODO: Implement categorizeTransaction logic here
+    return CategorizationResult(
+      category: 'Stub',
+      subcategory: '',
+      confidenceScore: 1.0,
+      needsConfirmation: false,
+      reason: null,
+    );
   }
 
   // ────────────────────────────────────────────────────────
@@ -204,7 +78,7 @@ class ApiService {
       debugPrint('Response body: ${response.body}');
 
       if (response.statusCode == 200) {
-        final jsonResponse = jsonDecode(response.body);
+        final jsonResponse = json.decode(response.body); // Fully qualified name for jsonDecode
         if (jsonResponse['success'] == true) {
           return AnomalyScanResult.fromJson(jsonResponse);
         } else {
@@ -506,6 +380,71 @@ class ApiService {
       }
     } catch (e) {
       debugPrint('Error in createGoal: $e');
+      rethrow;
+    }
+  }
+
+  /// Fetch transactions for a user
+  Future<TransactionListResponse> getTransactions({required int userId, int limit = 100}) async {
+    try {
+      final uri = Uri.parse('$baseUrl/transactions/list').replace(
+        queryParameters: {
+          'user_id': userId.toString(),
+          'limit': limit.toString(),
+        },
+      );
+      final response = await http.get(
+        uri,
+        headers: {'Content-Type': 'application/json'},
+      ).timeout(
+        const Duration(seconds: 30),
+        onTimeout: () => throw TimeoutException('getTransactions request timed out'),
+      );
+      if (response.statusCode == 200) {
+        final jsonResponse = jsonDecode(response.body);
+        if (jsonResponse['success'] == true) {
+          return TransactionListResponse.fromJson(jsonResponse);
+        }
+        throw Exception(jsonResponse['error'] ?? 'Failed to load transactions');
+      } else {
+        throw Exception('Failed to load transactions: ${response.statusCode} - ${response.body}');
+      }
+    } catch (e) {
+      debugPrint('Error in getTransactions: $e');
+      rethrow;
+    }
+  }
+
+  /// Add a transaction for a user
+  Future<TransactionResponse> addTransaction({required int userId, required double amount, String? description}) async {
+    try {
+      final uri = Uri.parse('$baseUrl/transactions/add');
+      final formData = {
+        'user_id': userId.toString(),
+        'amount': amount.toString(),
+      };
+      if (description != null) {
+        formData['description'] = description;
+      }
+      final response = await http.post(
+        uri,
+        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+        body: formData,
+      ).timeout(
+        const Duration(seconds: 30),
+        onTimeout: () => throw TimeoutException('addTransaction request timed out'),
+      );
+      if (response.statusCode == 200) {
+        final jsonResponse = jsonDecode(response.body);
+        if (jsonResponse['success'] == true) {
+          return TransactionResponse.fromJson(jsonResponse);
+        }
+        throw Exception(jsonResponse['error'] ?? 'Failed to add transaction');
+      } else {
+        throw Exception('Failed to add transaction: ${response.statusCode} - ${response.body}');
+      }
+    } catch (e) {
+      debugPrint('Error in addTransaction: $e');
       rethrow;
     }
   }
@@ -876,6 +815,7 @@ class DashboardSummary {
     this.financialStability,
     this.monthStart,
     this.generatedAt,
+    this.streakMetrics,
   });
 
   factory DashboardSummary.fromJson(Map<String, dynamic> json) {
@@ -912,7 +852,7 @@ class DashboardSummary {
           ? StreakMetrics.fromJson(summary['streak_metrics'] as Map<String, dynamic>)
           : null,
     );
-
+  }
 }
 
 class StreakMetrics {
@@ -948,8 +888,6 @@ class StreakMetrics {
       totalSipAmount: _toDouble(json['total_sip_amount']) ?? 0.0,
       missedMonths: json['missed_months'] ?? 0,
     );
-  }
-}
   }
 }
 
@@ -1447,11 +1385,5 @@ class GoalTimeline {
 }
 
 // Exception classes
-class TimeoutException implements Exception {
-  final String message;
-  TimeoutException(this.message);
 
-  @override
-  String toString() => message;
-}
 

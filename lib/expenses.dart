@@ -1303,11 +1303,9 @@ class _AddTransactionDialogState extends State<_AddTransactionDialog> {
       final result = await widget.apiService.categorizeTransaction(
         rawDescription: _descriptionController.text,
         amount: double.parse(_amountController.text),
-        userId: widget.userId,
         accountId: widget.accountId,
         merchantName: _merchantController.text,
         txnType: _transactionType,
-        paymentMode: _paymentMode,
       );
 
       if (mounted) {
@@ -1655,15 +1653,9 @@ class _AddTransactionDialogState extends State<_AddTransactionDialog> {
       await _addMerchantIfNeeded();
 
       final response = await widget.apiService.addTransaction(
-        rawDescription: _descriptionController.text,
-        amount: double.parse(_amountController.text),
-        category: _selectedCategory!,
-        subcategory: _selectedSubcategory ?? '',
         userId: widget.userId,
-        accountId: widget.accountId,
-        merchantName: _merchantController.text,
-        paymentMode: _paymentMode,
-        txnType: _transactionType,
+        amount: double.parse(_amountController.text),
+        description: _descriptionController.text,
       );
 
       if (mounted) setState(() => _isLoading = false);

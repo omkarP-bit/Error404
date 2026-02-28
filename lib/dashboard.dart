@@ -261,7 +261,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
       ],
     );
   }
-  }
 
   Widget _buildHeader(BuildContext context) {
     return Row(
@@ -774,9 +773,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
   void _showStabilityBreakdown() {
     final stability = _summary?.financialStability;
     if (stability == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No stability data available yet.')),
-      );
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No stability data available yet.')),
+        );
+      }
       return;
     }
 
