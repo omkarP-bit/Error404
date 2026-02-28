@@ -1,5 +1,65 @@
+<<<<<<< Updated upstream
 # Miscellaneous
 *.class
+=======
+# Environment
+.env
+.env.local
+
+# Node
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+
+# ML Models
+ml/saved_models/*.pkl
+ml/saved_models/*.h5
+ml/experiments/
+
+# Flutter - Build artifacts
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+build/
+pubspec.lock
+.venv/
+
+# iOS
+ios/Flutter/Flutter.framework/
+ios/Flutter/Flutter.podspec
+
+# Android
+android/.gradle/
+android/local.properties
+android/**/GeneratedPluginRegistrant.java
+
+# macOS/Linux/Windows build outputs
+macos/
+linux/
+windows/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+>>>>>>> Stashed changes
 *.log
 *.pyc
 *.swp
